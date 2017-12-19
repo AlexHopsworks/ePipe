@@ -9,7 +9,7 @@ configure_file(Version.h.in ${CMAKE_SOURCE_DIR}/include/Version.h)
 
 set(Boost_USE_STATIC_LIBS ON)
 
-find_package(Boost 1.53 REQUIRED COMPONENTS system date_time program_options thread)
+find_package(Boost 1.53 REQUIRED COMPONENTS system date_time program_options thread locale)
 find_package(CURL 7.29.0)
 find_package(RapidJSON 1.0.2)
 
@@ -32,4 +32,4 @@ file(GLOB SOURCE ${CMAKE_SOURCE_DIR}/src/*.cpp)
 
 add_executable(ePipe ${SOURCE})
 
-target_link_libraries(ePipe ${Boost_LIBRARIES} ${CURL_LIBRARIES} ndbclient pthread)
+target_link_libraries(ePipe ${Boost_LIBRARIES} ${CURL_LIBRARIES} ndbclient pthread icuuc)

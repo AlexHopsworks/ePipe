@@ -28,6 +28,7 @@
 #include "common.h"
 #include<cstdlib>
 #include<cstring>
+#include <boost/locale/encoding.hpp>
 
 typedef boost::posix_time::ptime ptime;
 
@@ -160,7 +161,7 @@ namespace Utils {
                      Data starts from second byte of aRef
                      */
                     first_byte = aRef + 1;
-                    bytes = (size_t) (aRef[0]);
+                    bytes = (size_t) ((unsigned char)aRef[0]);
                     return 0;
                 case NdbDictionary::Column::ArrayTypeMediumVar:
                     /*
@@ -196,7 +197,7 @@ namespace Utils {
                         str = str.substr(0, endpos + 1);
                     }
                 }
-                return string(str);
+                return boost::locale::conv::between(str, "UTF-8", "Latin1");
             }
             return NULL;
         }
