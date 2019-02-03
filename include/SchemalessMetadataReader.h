@@ -30,6 +30,7 @@
 #include "HopsworksOpsLogTailer.h"
 #include "ProjectsElasticSearch.h"
 #include "tables/SchemalessMetadataTable.h"
+#include "boost/optional.hpp"
 
 class SchemalessMetadataReader : public NdbDataReader<MetadataLogEntry, MConn, FSKeys> {
 public:

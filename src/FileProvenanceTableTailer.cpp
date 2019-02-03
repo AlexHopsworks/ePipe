@@ -17,21 +17,21 @@
  */
 
 /*
- * File:   ProvenanceTableTailer.cpp
+ * File:   FileProvenanceTableTailer.cpp
  * Author: Mahmoud Ismail<maism@kth.se>
  *
  */
 
-#include "ProvenanceTableTailer.h"
+#include "FileProvenanceTableTailer.h"
 
-ProvenanceTableTailer::ProvenanceTableTailer(Ndb *ndb, const int poll_maxTimeToWait, const Barrier barrier)
-: RCTableTailer(ndb, new ProvenanceLogTable(), poll_maxTimeToWait, barrier) {
+FileProvenanceTableTailer::FileProvenanceTableTailer(Ndb *ndb, const int poll_maxTimeToWait, const Barrier barrier)
+: RCTableTailer(ndb, new FileProvenanceLogTable(), poll_maxTimeToWait, barrier) {
   mQueue = new CPRq();
   mCurrentPriorityQueue = new PRpq();
 }
 
-void ProvenanceTableTailer::handleEvent(NdbDictionary::Event::TableEvent eventType, ProvenanceRow pre,
-        ProvenanceRow row) {
+void FileProvenanceTableTailer::handleEvent(NdbDictionary::Event::TableEvent eventType, FileProvenanceRow pre,
+        FileProvenanceRow row) {
   mLock.lock();
   mCurrentPriorityQueue->push(row);
   int size = mCurrentPriorityQueue->size();
@@ -41,7 +41,7 @@ void ProvenanceTableTailer::handleEvent(NdbDictionary::Event::TableEvent eventTy
 
 }
 
-void ProvenanceTableTailer::barrierChanged() {
+void FileProvenanceTableTailer::barrierChanged() {
   PRpq* pq = NULL;
   mLock.lock();
   if (!mCurrentPriorityQueue->empty()) {
@@ -56,14 +56,14 @@ void ProvenanceTableTailer::barrierChanged() {
   }
 }
 
-ProvenanceRow ProvenanceTableTailer::consume() {
-  ProvenanceRow row;
+FileProvenanceRow FileProvenanceTableTailer::consume() {
+  FileProvenanceRow row;
   mQueue->wait_and_pop(row);
   LOG_TRACE(" pop inode [" << row.mInodeId << "] from queue \n" << row.to_string());
   return row;
 }
 
-void ProvenanceTableTailer::pushToQueue(PRpq *curr) {
+void FileProvenanceTableTailer::pushToQueue(PRpq *curr) {
   while (!curr->empty()) {
     mQueue->push(curr->top());
     curr->pop();
@@ -71,16 +71,16 @@ void ProvenanceTableTailer::pushToQueue(PRpq *curr) {
   delete curr;
 }
 
-void ProvenanceTableTailer::pushToQueue(Pv* curr) {
-  std::sort(curr->begin(), curr->end(), ProvenanceRowComparator());
+void FileProvenanceTableTailer::pushToQueue(Pv* curr) {
+  std::sort(curr->begin(), curr->end(), FileProvenanceRowComparator());
   for (Pv::iterator it = curr->begin(); it != curr->end(); ++it) {
     mQueue->push(*it);
   }
   delete curr;
 }
 
-void ProvenanceTableTailer::recover() {
-  ProvenanceRowsGCITuple tuple = ProvenanceLogTable().getAllByGCI(mNdbConnection);
+void FileProvenanceTableTailer::recover() {
+  ProvenanceRowsGCITuple tuple = FileProvenanceLogTable().getAllByGCI(mNdbConnection);
   vector<Uint64>* gcis = tuple.get<0>();
   ProvenanceRowsByGCI* rowsByGCI = tuple.get<1>();
   for (vector<Uint64>::iterator it = gcis->begin(); it != gcis->end(); it++) {
@@ -89,6 +89,6 @@ void ProvenanceTableTailer::recover() {
   }
 }
 
-ProvenanceTableTailer::~ProvenanceTableTailer() {
+FileProvenanceTableTailer::~FileProvenanceTableTailer() {
   delete mQueue;
 }

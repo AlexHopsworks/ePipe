@@ -30,6 +30,7 @@
 #include <boost/lexical_cast.hpp>
 #include "ProjectsElasticSearch.h"
 #include "tables/SchemabasedMetadataTable.h"
+#include "boost/optional.hpp"
 
 class SchemabasedMetadataReader : public NdbDataReader<MetadataLogEntry, MConn, FSKeys> {
 public:

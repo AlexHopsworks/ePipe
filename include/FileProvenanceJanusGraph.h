@@ -16,30 +16,29 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceElasticSearch.h
- * Author: Mahmoud Ismail <maism@kth.se>
+ * File:   FileProvenanceJanusGraph.h
+ * Author: Alexandru Ormenisan <aaor@kth.se>
  *
  */
 
-#ifndef PROVENANCEELASTICSEARCH_H
-#define PROVENANCEELASTICSEARCH_H
+#ifndef FILEPROVENANCEJANUSGRAPH_H
+#define FILEPROVENANCEJANUSGRAPH_H
 
-#include "ElasticSearchBase.h"
+#include "JanusGraphBase.h"
 #include "FileProvenanceTableTailer.h"
 
 typedef Bulk<PKeys> PBulk;
 
-class ProvenanceElasticSearch : public ElasticSearchBase<PKeys> {
+class FileProvenanceJanusGraph : public JanusGraphBase<PKeys> {
 public:
-  ProvenanceElasticSearch(string elastic_addr, string index,
+  FileProvenanceJanusGraph(string janusgraph_addr,
           int time_to_wait_before_inserting, int bulk_size, const bool stats,
           SConn conn);
-  virtual ~ProvenanceElasticSearch();
+  virtual ~FileProvenanceJanusGraph();
 private:
-  const string mIndex;
   const bool mStats;
 
-  string mElasticBulkAddr;
+  string mJanusGraphBulkAddr;
 
   SConn mConn;
 
@@ -47,5 +46,5 @@ private:
 
 };
 
-#endif /* PROVENANCEELASTICSEARCH_H */
+#endif /* FILEPROVENANCEJANUSGRAPH_H */
 

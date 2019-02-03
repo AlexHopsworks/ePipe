@@ -27,10 +27,11 @@
 
 #include "FsMutationsTableTailer.h"
 #include "ProjectsElasticSearch.h"
+#include "JanusGraphBase.h"
 #include "tables/INodeTable.h"
 #include "tables/DatasetTable.h"
 #include "NdbDataReaders.h"
-
+#include "boost/optional.hpp"
 
 class FsMutationsDataReader : public NdbDataReader<FsMutationRow, MConn, FSKeys> {
 public:

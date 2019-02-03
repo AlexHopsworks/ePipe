@@ -15,39 +15,36 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-
-/*
- * File:   ProvenanceTableTailer.h
- * Author: Mahmoud Ismail<maism@kth.se>
+/* 
+ * File:   AppProvenanceJanusGraph.h
+ * Author: Alexandru Ormenisan <aaor@kth.se>
  *
  */
 
-#ifndef PROVENANCETABLETAILER_H
-#define PROVENANCETABLETAILER_H
+#ifndef APPPROVENANCEJANUSGRAPH_H
+#define APPPROVENANCEJANUSGRAPH_H
 
-#include "RCTableTailer.h"
-#include "tables/ProvenanceLogTable.h"
+#include "JanusGraphBase.h"
+#include "AppProvenanceTableTailer.h"
 
-class ProvenanceTableTailer : public RCTableTailer<ProvenanceRow> {
+typedef Bulk<AppPKeys> AppPBulk;
+
+class AppProvenanceJanusGraph : public JanusGraphBase<AppPKeys> {
 public:
-  ProvenanceTableTailer(Ndb* ndb, const int poll_maxTimeToWait, const Barrier barrier);
-  ProvenanceRow consume();
-  virtual ~ProvenanceTableTailer();
-
+  AppProvenanceJanusGraph(string janusgraph_addr,
+          int time_to_wait_before_inserting, int bulk_size, const bool stats,
+          SConn conn);
+  virtual ~AppProvenanceJanusGraph();
 private:
-  virtual void handleEvent(NdbDictionary::Event::TableEvent eventType, ProvenanceRow pre, ProvenanceRow row);
-  void barrierChanged();
+  const bool mStats;
 
-  void recover();
+  string mJanusGraphBulkAddr;
 
-  void pushToQueue(PRpq* curr);
-  void pushToQueue(Pv* curr);
+  SConn mConn;
 
-  CPRq *mQueue;
-  PRpq* mCurrentPriorityQueue;
-  boost::mutex mLock;
+  virtual void process(vector<AppPBulk>* bulks);
 
 };
 
+#endif /* APPPROVENANCEJANUSGRAPH_H */
 
-#endif //PROVENANCETABLETAILER_H

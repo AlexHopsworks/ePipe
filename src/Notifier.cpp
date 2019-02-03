@@ -23,18 +23,17 @@
  */
 
 #include "Notifier.h"
-#include "ProvenanceBatcher.h"
 
 Notifier::Notifier(const char* connection_string, const char* database_name, const char* meta_database_name,
         const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, TableUnitConf provenance_tu,
         const int poll_maxTimeToWait, const string elastic_ip, const bool hopsworks, const string elastic_index, const string elastic_provenance_index,
         const int elastic_batch_size, const int elastic_issue_time, const int lru_cap, const bool recovery,
-        const bool stats, Barrier barrier)
+        const bool stats, const string janusgraph_ip, Barrier barrier)
 : ClusterConnectionBase(connection_string, database_name, meta_database_name), mMutationsTU(mutations_tu), mSchemabasedTU(schemabased_tu),
 mSchemalessTU(schemaless_tu), mProvenanceTU(provenance_tu), mPollMaxTimeToWait(poll_maxTimeToWait), mElasticAddr(elastic_ip), mHopsworksEnabled(hopsworks),
 mElasticIndex(elastic_index), mElasticProvenanceIndex(elastic_provenance_index),
 mElasticBatchsize(elastic_batch_size), mElasticIssueTime(elastic_issue_time), mLRUCap(lru_cap),
-mRecovery(recovery), mStats(stats), mBarrier(barrier) {
+mRecovery(recovery), mStats(stats), mJanusGraphAddr(janusgraph_ip), mBarrier(barrier) {
   setup();
 }
 
@@ -70,10 +69,17 @@ void Notifier::start() {
   }
 
   if (mProvenanceTU.isEnabled()) {
-    mProvenancElasticSearch->start();
-    mProvenanceDataReaders->start();
-    mProvenanceBatcher->start();
-    mProvenanceTableTailer->start(mRecovery);
+    // mFileProvenancElasticSearch->start();
+
+    mFileProvenanceJanusGraph->start();
+    mFileProvenanceDataReaders->start();
+    mFileProvenanceBatcher->start();
+    mFileProvenanceTableTailer->start(mRecovery);
+
+    mAppProvenanceJanusGraph->start();
+    mAppProvenanceDataReaders->start();
+    mAppProvenanceBatcher->start();
+    mAppProvenanceTableTailer->start(mRecovery);
   }
 
   ptime t2 = getCurrentTime();
@@ -104,9 +110,15 @@ void Notifier::start() {
   }
 
   if (mProvenanceTU.isEnabled()) {
-    mProvenanceBatcher->waitToFinish();
-    mProvenanceTableTailer->waitToFinish();
-    mProvenancElasticSearch->waitToFinish();
+    mFileProvenancElasticSearch->waitToFinish();
+
+    mFileProvenanceBatcher->waitToFinish();
+    mFileProvenanceTableTailer->waitToFinish();
+    mFileProvenanceJanusGraph->waitToFinish();
+
+    mAppProvenanceBatcher->waitToFinish();
+    mAppProvenanceTableTailer->waitToFinish();
+    mAppProvenanceJanusGraph->waitToFinish();
   }
 }
 
@@ -179,22 +191,41 @@ void Notifier::setup() {
   }
 
   if (mProvenanceTU.isEnabled()) {
-    Ndb* ndb_elastic_provenance_conn = create_ndb_connection(mDatabaseName);
-    mProvenancElasticSearch = new ProvenanceElasticSearch(mElasticAddr,
-            mElasticProvenanceIndex, mElasticIssueTime,
-            mElasticBatchsize, mStats, ndb_elastic_provenance_conn);
+    // mFileProvenancElasticSearch = new ProvenanceElasticSearch(mElasticAddr,
+    //         mElasticProvenanceIndex, mElasticIssueTime,
+    //         mElasticBatchsize, mStats, ndb_file_provenance_conn);
+    // for (int i = 0; i < mProvenanceTU.mNumReaders; i++) {
+    //   provenance_connections[i] = create_ndb_connection(mDatabaseName);
+    // }
+    // mProvenanceDataReaders = new ProvenanceDataReaders(provenance_connections, mProvenanceTU.mNumReaders,
+    //         mHopsworksEnabled, mProvenancElasticSearch);
 
-
-    Ndb* provenance_tailer_connection = create_ndb_connection(mDatabaseName);
-    mProvenanceTableTailer = new ProvenanceTableTailer(provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
-
-    SConn* provenance_connections = new SConn[mProvenanceTU.mNumReaders];
+    Ndb* ndb_file_provenance_conn = create_ndb_connection(mDatabaseName);
+    mFileProvenanceJanusGraph = new FileProvenanceJanusGraph(mJanusGraphAddr, mElasticIssueTime,
+            mElasticBatchsize, mStats, ndb_file_provenance_conn);
+    Ndb* file_provenance_tailer_connection = create_ndb_connection(mDatabaseName);
+    mFileProvenanceTableTailer = new FileProvenanceTableTailer(file_provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
+    SConn* file_provenance_connections = new SConn[mProvenanceTU.mNumReaders];
     for (int i = 0; i < mProvenanceTU.mNumReaders; i++) {
-      provenance_connections[i] = create_ndb_connection(mDatabaseName);
+      file_provenance_connections[i] = create_ndb_connection(mDatabaseName);
     }
-    mProvenanceDataReaders = new ProvenanceDataReaders(provenance_connections, mProvenanceTU.mNumReaders,
-            mHopsworksEnabled, mProvenancElasticSearch);
-    mProvenanceBatcher = new ProvenanceBatcher(mProvenanceTableTailer, mProvenanceDataReaders,
+    mFileProvenanceDataReaders = new FileProvenanceGremlinDataReaders(file_provenance_connections, mProvenanceTU.mNumReaders, 
+            mHopsworksEnabled, mFileProvenanceJanusGraph);
+    mFileProvenanceBatcher = new RCBatcher<FileProvenanceRow, SConn, PKeys>(mFileProvenanceTableTailer, mFileProvenanceDataReaders,
+            mProvenanceTU.mWaitTime, mProvenanceTU.mBatchSize);
+
+    Ndb* ndb_app_provenance_conn = create_ndb_connection(mDatabaseName);
+    mAppProvenanceJanusGraph = new AppProvenanceJanusGraph(mJanusGraphAddr, mElasticIssueTime,
+            mElasticBatchsize, mStats, ndb_app_provenance_conn);
+    Ndb* app_provenance_tailer_connection = create_ndb_connection(mDatabaseName);  
+    mAppProvenanceTableTailer = new AppProvenanceTableTailer(app_provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
+    SConn* app_provenance_connections = new SConn[mProvenanceTU.mNumReaders];
+    for (int i = 0; i < mProvenanceTU.mNumReaders; i++) {
+      app_provenance_connections[i] = create_ndb_connection(mDatabaseName);
+    }
+    mAppProvenanceDataReaders = new AppProvenanceGremlinDataReaders(app_provenance_connections, mProvenanceTU.mNumReaders, 
+            mHopsworksEnabled, mAppProvenanceJanusGraph);
+    mAppProvenanceBatcher = new RCBatcher<AppProvenanceRow, SConn, AppPKeys>(mAppProvenanceTableTailer, mAppProvenanceDataReaders,
             mProvenanceTU.mWaitTime, mProvenanceTU.mBatchSize);
   }
 }

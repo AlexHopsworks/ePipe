@@ -16,22 +16,22 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceElasticSearch.cpp
- * Author: Mahmoud Ismail <maism@kth.se>
+ * File:   FileProvenanceJanusGraph.cpp
+ * Author: Alexandru Ormenisan <aaor@kth.se>
  * 
  */
 
-#include "ProvenanceElasticSearch.h"
+#include "FileProvenanceJanusGraph.h"
 
-ProvenanceElasticSearch::ProvenanceElasticSearch(string elastic_addr,
-        string index, int time_to_wait_before_inserting,
+FileProvenanceJanusGraph::FileProvenanceJanusGraph(string janusgraph_addr,
+        int time_to_wait_before_inserting,
         int bulk_size, const bool stats, SConn conn) :
-ElasticSearchBase(elastic_addr, time_to_wait_before_inserting, bulk_size),
-mIndex(index), mStats(stats), mConn(conn) {
-  mElasticBulkAddr = getElasticSearchBulkUrl(mIndex);
+JanusGraphBase(janusgraph_addr, time_to_wait_before_inserting, bulk_size),
+mStats(stats), mConn(conn) {
+  mJanusGraphBulkAddr = getJanusGraphUrl();
 }
 
-void ProvenanceElasticSearch::process(vector<PBulk>* bulks) {
+void FileProvenanceJanusGraph::process(vector<PBulk>* bulks) {
   PKeys keys;
   string batch;
   for (vector<PBulk>::iterator it = bulks->begin(); it != bulks->end(); ++it) {
@@ -41,7 +41,7 @@ void ProvenanceElasticSearch::process(vector<PBulk>* bulks) {
   }
 
   //TODO: handle failures
-  if (httpRequest(HTTP_POST, mElasticBulkAddr, batch)) {
+  if (httpRequest(HTTP_POST, mJanusGraphBulkAddr, batch)) {
     if (!keys.empty()) {
       FileProvenanceLogTable().removeLogs(mConn, keys);
     }
@@ -50,7 +50,7 @@ void ProvenanceElasticSearch::process(vector<PBulk>* bulks) {
   //TODO: stats
 }
 
-ProvenanceElasticSearch::~ProvenanceElasticSearch() {
+FileProvenanceJanusGraph::~FileProvenanceJanusGraph() {
 
 }
 

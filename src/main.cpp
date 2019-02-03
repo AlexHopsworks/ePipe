@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
   string meta_database_name = "hopsworks";
   int poll_maxTimeToWait = 2000;
   string elastic_addr = "localhost:9200";
+  string janusgraph_addr = "localhost:8182";
   int log_level = 2;
 
   TableUnitConf mutations_tu = TableUnitConf();
@@ -81,6 +82,7 @@ int main(int argc, char** argv) {
           ("barrier", po::value<int>()->default_value(barrier), "Table tailer barrier type. EPOCH=0, GCI=1")
           ("reindex", po::value<bool>(&reindex)->default_value(reindex), "initialize an empty index with all metadata")
           ("version", "ePipe version")
+          ("janusgraph_addr", po::value<string>(&janusgraph_addr)->default_value(janusgraph_addr), "ip and port of the janusgraph gremlin server")
           ;
 
 
@@ -137,7 +139,7 @@ int main(int argc, char** argv) {
             meta_database_name.c_str(), mutations_tu, schamebased_tu, schemaless_tu, provenance_tu,
             poll_maxTimeToWait, elastic_addr, hopsworks, elastic_index, elastic_provenance_index,
             elastic_batch_size, elastic_issue_time,
-            lru_cap, recovery, stats, barrier);
+            lru_cap, recovery, stats, janusgraph_addr, barrier);
     notifer->start();
   }
   return EXIT_SUCCESS;

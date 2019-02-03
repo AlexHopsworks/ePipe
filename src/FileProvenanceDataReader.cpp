@@ -16,27 +16,34 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceBatcher.h
+ * File:   FileProvenanceDataReader.cpp
  * Author: Mahmoud Ismail <maism@kth.se>
- *
+ * 
  */
 
-#ifndef PROVENANCEBATCHER_H
-#define PROVENANCEBATCHER_H
-#include "RCBatcher.h"
-#include "ProvenanceTableTailer.h"
-#include "ProvenanceDataReader.h"
+#include "FileProvenanceDataReader.h"
 
-class ProvenanceBatcher : public RCBatcher<ProvenanceRow, SConn, PKeys> {
-public:
+FileProvenanceDataReader::FileProvenanceDataReader(SConn connection, const bool hopsworks)
+: NdbDataReader(connection, hopsworks) {
+}
 
-  ProvenanceBatcher(ProvenanceTableTailer* table_tailer, ProvenanceDataReaders* data_reader,
-          const int time_before_issuing_ndb_reqs, const int batch_size)
-  : RCBatcher(table_tailer, data_reader, time_before_issuing_ndb_reqs, batch_size) {
-
+void FileProvenanceDataReader::processAddedandDeleted(Pq* data_batch, PBulk& bulk) {
+  vector<ptime> arrivalTimes(data_batch->size());
+  stringstream out;
+  int i = 0;
+  for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it, i++) {
+    FileProvenanceRow row = *it;
+    arrivalTimes[i] = row.mEventCreationTime;
+    FileProvenancePK rowPK = row.getPK();
+    bulk.mPKs.push_back(rowPK);
+    out << row.to_create_json() << endl;
   }
 
-};
+  bulk.mArrivalTimes = arrivalTimes;
+  bulk.mJSON = out.str();
+}
 
-#endif /* PROVENANCEBATCHER_H */
+FileProvenanceDataReader::~FileProvenanceDataReader() {
+  
+}
 
