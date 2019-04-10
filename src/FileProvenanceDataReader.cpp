@@ -27,7 +27,7 @@ FileProvenanceDataReader::FileProvenanceDataReader(SConn connection, const bool 
 : NdbDataReader(connection, hopsworks) {
 }
 
-void FileProvenanceDataReader::processAddedandDeleted(Pq* data_batch, PBulk& bulk) {
+void FileProvenanceDataReader::processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk) {
   vector<ptime> arrivalTimes(data_batch->size());
   stringstream out;
   int i = 0;

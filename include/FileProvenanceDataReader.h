@@ -25,8 +25,10 @@
 #define FILEPROVENANCEDATAREADER_H
 
 #include "NdbDataReaders.h"
-#include "ProvenanceElasticSearch.h"
-#include "FileProvenanceJanusGraph.h"
+#include "FileProvenanceTableTailer.h"
+#include "TimedRestBatcher.h"
+// #include "ProvenanceElasticSearch.h"
+// #include "FileProvenanceJanusGraph.h"
 #include "boost/optional.hpp"
 
 class FileProvenanceDataReader : public NdbDataReader<FileProvenanceRow, SConn, PKeys> {
@@ -34,7 +36,7 @@ public:
   FileProvenanceDataReader(SConn connection, const bool hopsworks);
   virtual ~FileProvenanceDataReader();
 private:
-  virtual void processAddedandDeleted(Pq* data_batch, PBulk& bulk);
+  virtual void processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk);
 };
 
 class ProvenanceDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, PKeys>{

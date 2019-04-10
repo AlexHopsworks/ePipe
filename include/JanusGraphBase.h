@@ -40,6 +40,7 @@ public:
 
 protected:
   string getJanusGraphUrl();
+  virtual bool parseResponse(string response);
 
 };
 
@@ -52,6 +53,60 @@ template<typename Keys>
 string JanusGraphBase<Keys>::getJanusGraphUrl() {
   string str = this->mEndpointAddr;
   return str;
+}
+
+template<typename Keys>
+bool JanusGraphBase<Keys>::parseResponse(string response) {
+  try {
+    rapidjson::Document d;
+    if (!d.Parse<0>(response.c_str()).HasParseError()) {
+      if (d.HasMember("errors")) {
+        const rapidjson::Value &bulkErrors = d["errors"];
+        if (bulkErrors.IsBool() && bulkErrors.GetBool()) {
+          const rapidjson::Value &items = d["items"];
+          stringstream errors;
+          for (rapidjson::SizeType i = 0; i < items.Size(); ++i) {
+            const rapidjson::Value &obj = items[i];
+            for (rapidjson::Value::ConstMemberIterator itr = obj.MemberBegin(); itr != obj.MemberEnd(); ++itr) {
+              const rapidjson::Value & opObj = itr->value;
+              if (opObj.HasMember("error")) {
+                const rapidjson::Value & error = opObj["error"];
+                if (error.IsObject()) {
+                  const rapidjson::Value & errorType = error["type"];
+                  const rapidjson::Value & errorReason = error["reason"];
+                  errors << errorType.GetString() << ":" << errorReason.GetString();
+                } else if (error.IsString()) {
+                  errors << error.GetString();
+                }
+                errors << ", ";
+              }
+            }
+          }
+          string errorsStr = errors.str();
+          LOG_ERROR(" ES got errors: " << errorsStr);
+          return false;
+        }
+      } else if (d.HasMember("error")) {
+        const rapidjson::Value &error = d["error"];
+        if (error.IsObject()) {
+          const rapidjson::Value & errorType = error["type"];
+          const rapidjson::Value & errorReason = error["reason"];
+          LOG_ERROR(" ES got error: " << errorType.GetString() << ":" << errorReason.GetString());
+        } else if (error.IsString()) {
+          LOG_ERROR(" ES got error: " << error.GetString());
+        }
+        return false;
+      }
+    } else {
+      LOG_ERROR(" ES got json error (" << d.GetParseError() << ") while parsing (" << response << ")");
+      return false;
+    }
+
+  } catch (std::exception &e) {
+    LOG_ERROR(e.what());
+    return false;
+  }
+  return true;
 }
 
 template<typename Keys>
