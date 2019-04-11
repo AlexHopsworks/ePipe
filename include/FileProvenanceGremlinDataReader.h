@@ -29,22 +29,24 @@
 #include "boost/optional.hpp"
 #include "boost/date_time.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "tables/INodeTable.h"
 
 class FileProvenanceGremlinDataReader : public NdbDataReader<FileProvenanceRow, SConn, PKeys> {
 public:
-  FileProvenanceGremlinDataReader(SConn connection, const bool hopsworks);
+  FileProvenanceGremlinDataReader(SConn inodeConnection, const bool hopsworks, const int lru_cap);
   virtual ~FileProvenanceGremlinDataReader();
 private:
-
+  INodeTable mInodesTable;
   virtual void processAddedandDeleted(Pq* data_batch, PBulk& bulk);
   virtual string opBindings(FileProvenanceRow row);
+  virtual void isFeatureGroup(FileProvenanceRow row, string projectName, string datasetName);
 };
 class FileProvenanceGremlinDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, PKeys>{
   public:
-    FileProvenanceGremlinDataReaders(SConn* connections, int num_readers,const bool hopsworks, FileProvenanceJanusGraph* janusGraph) : 
+    FileProvenanceGremlinDataReaders(SConn* connections, int num_readers,const bool hopsworks, FileProvenanceJanusGraph* janusGraph, const int lru_cap) : 
     NdbDataReaders(janusGraph){
       for(int i=0; i<num_readers; i++){
-        FileProvenanceGremlinDataReader* dr = new FileProvenanceGremlinDataReader(connections[i], hopsworks);
+        FileProvenanceGremlinDataReader* dr = new FileProvenanceGremlinDataReader(connections[i], hopsworks, lru_cap);
         dr->start(i, this);
         mDataReaders.push_back(dr);
       }

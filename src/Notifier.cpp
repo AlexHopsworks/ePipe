@@ -210,7 +210,7 @@ void Notifier::setup() {
       file_provenance_connections[i] = create_ndb_connection(mDatabaseName);
     }
     mFileProvenanceDataReaders = new FileProvenanceGremlinDataReaders(file_provenance_connections, mProvenanceTU.mNumReaders, 
-            mHopsworksEnabled, mFileProvenanceJanusGraph);
+            mHopsworksEnabled, mFileProvenanceJanusGraph, mLRUCap);
     mFileProvenanceBatcher = new RCBatcher<FileProvenanceRow, SConn, PKeys>(mFileProvenanceTableTailer, mFileProvenanceDataReaders,
             mProvenanceTU.mWaitTime, mProvenanceTU.mBatchSize);
 

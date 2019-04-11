@@ -23,11 +23,13 @@
 
 #include "FileProvenanceGremlinDataReader.h"
 
-FileProvenanceGremlinDataReader::FileProvenanceGremlinDataReader(SConn connection, const bool hopsworks)
-: NdbDataReader(connection, hopsworks) {
+FileProvenanceGremlinDataReader::FileProvenanceGremlinDataReader(SConn inodeConnection, const bool hopsworks, const int lru_cap)
+: NdbDataReader(inodeConnection, hopsworks), mInodesTable(lru_cap) {
 }
 
 void FileProvenanceGremlinDataReader::processAddedandDeleted(Pq* data_batch, PBulk& bulk) {
+  INodeMap inodes = mInodesTable.get(mNdbConnection, data_batch);
+
   rapidjson::StringBuffer sbOp;
   rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
 
@@ -50,6 +52,20 @@ void FileProvenanceGremlinDataReader::processAddedandDeleted(Pq* data_batch, PBu
   for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it, i++) {
     FileProvenanceRow row = *it;
     arrivalTimes[i] = row.mEventCreationTime;
+
+    if (inodes.find(row.mProjectId) == inodes.end()) {
+      LOG_INFO("no project");
+      continue;
+    }
+    string projectName = inodes[row.mProjectId].mName;
+
+    if (inodes.find(row.mDatasetId) == inodes.end()) {
+      LOG_INFO("no dataset");
+      continue;
+    }
+    string datasetName = inodes[row.mDatasetId].mName;
+    isFeatureGroup(row, projectName, datasetName);
+
     FileProvenancePK rowPK = row.getPK();
     bulk.mPKs.push_back(rowPK);
     string opBinding = opBindings(row);
@@ -67,6 +83,14 @@ void FileProvenanceGremlinDataReader::processAddedandDeleted(Pq* data_batch, PBu
   bulk.mJSON = out.str();
 }
 
+void FileProvenanceGremlinDataReader::isFeatureGroup(FileProvenanceRow row, string projectName, string datasetName) {
+  stringstream aux; 
+  aux << projectName << "_featurestore.db";
+  string featurestore = aux.str();
+  if(datasetName == featurestore) {
+    LOG_INFO("accessing feature store: ");
+  }
+}
 string FileProvenanceGremlinDataReader::opBindings(FileProvenanceRow row) {
   //time
   using namespace boost::posix_time;

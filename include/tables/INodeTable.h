@@ -28,6 +28,7 @@
 #include "UserTable.h"
 #include "GroupTable.h"
 #include "FsMutationsLogTable.h"
+#include "FileProvenanceLogTable.h"
 #include "ProjectTable.h"
 
 #define DOC_TYPE_INODE "inode"
@@ -327,6 +328,47 @@ public:
     a[1] = name;
     a[2] = partitionId;
     return DBTable<INodeRow>::doRead(connection, a);
+  }
+
+  INodeMap get(Ndb* connection, Pq* data_batch) {
+    AnyVec anyVec;
+    boost::unordered_map<int, FileProvenanceRow> provByInode;
+    for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it) {
+      FileProvenanceRow row = *it;
+      provByInode[row.mInodeId] = row;
+
+      AnyMap pk;
+      pk[0] = row.mParentId;
+      pk[1] = row.mInodeName;
+      pk[2] = row.mPartitionId;
+      anyVec.push_back(pk);
+    }
+
+    INodeVec inodes = doRead(connection, anyVec);
+
+    UISet user_ids, group_ids;
+    for (INodeVec::iterator it = inodes.begin(); it != inodes.end(); ++it) {
+      INodeRow row = *it;
+      user_ids.insert(row.mUserId);
+      group_ids.insert(row.mGroupId);
+    }
+
+    mUsersTable.updateUsersCache(connection, user_ids);
+    mGroupsTable.updateGroupsCache(connection, group_ids);
+
+    INodeMap result;
+
+    for (INodeVec::iterator it = inodes.begin(); it != inodes.end(); ++it) {
+      INodeRow row = *it;
+      FileProvenanceRow fprow = provByInode[row.mId];
+      row.mLogicalTime = fprow.mLogicalTime;
+      // row.mOperation = fprow.mOperation;
+      row.mUserName = mUsersTable.getFromCache(row.mUserId);
+      row.mGroupName = mGroupsTable.getFromCache(row.mGroupId);
+      result[row.mId] = row;
+    }
+
+    return result;
   }
 
   INodeMap get(Ndb* connection, Fmq* data_batch) {

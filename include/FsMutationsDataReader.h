@@ -35,7 +35,7 @@
 
 class FsMutationsDataReader : public NdbDataReader<FsMutationRow, MConn, FSKeys> {
 public:
-  FsMutationsDataReader(MConn connection, const bool hopsworks, const int lru_cap);
+  FsMutationsDataReader(MConn inodeConnection, const bool hopsworks, const int lru_cap);
   virtual ~FsMutationsDataReader();
 private:
   INodeTable mInodesTable;
