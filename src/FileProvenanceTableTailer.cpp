@@ -59,7 +59,7 @@ void FileProvenanceTableTailer::barrierChanged() {
 FileProvenanceRow FileProvenanceTableTailer::consume() {
   FileProvenanceRow row;
   mQueue->wait_and_pop(row);
-  LOG_TRACE(" pop inode [" << row.mInodeId << "] from queue \n" << row.to_string());
+  LOG_DEBUG(" pop inode [" << row.mInodeId << "] from queue \n" << row.to_string());
   return row;
 }
 

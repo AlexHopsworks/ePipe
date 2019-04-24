@@ -139,7 +139,7 @@ void TableTailer<TableRow>::createListenerEvent() {
     myEvent.print();
   else if (myDict->getNdbError().classification ==
           NdbError::SchemaObjectExists) {
-    LOG_DEBUG("Event creation failed, event exists, dropping Event...");
+    LOG_DEBUG("Event creation failed, event exists, dropping Event..." << mEventName.c_str());
     if (myDict->dropEvent(mEventName.c_str())) LOG_NDB_API_ERROR(myDict->getNdbError());
     // try again
     // Add event to database

@@ -73,7 +73,7 @@ void AppProvenanceTableTailer::pushToQueue(AppPRpq *curr) {
 
 void AppProvenanceTableTailer::pushToQueue(AppPv* curr) {
   std::sort(curr->begin(), curr->end(), AppProvenanceRowComparator());
-  for (AppPv::iterator it = curr->begin(); it != curr->end(); ++it) {
+  for (AppPv::reverse_iterator it = curr->rbegin(); it != curr->rend(); ++it) {
     mQueue->push(*it);
   }
   delete curr;

@@ -28,18 +28,23 @@
 #include "FsMutationsBatcher.h"
 #include "SchemabasedMetadataBatcher.h"
 #include "ProjectsElasticSearch.h"
+#include "ProvenanceElasticSearch.h"
 #include "SchemalessMetadataReader.h"
 #include "SchemalessMetadataBatcher.h"
 #include "HopsworksOpsLogTailer.h"
 #include "MetadataLogTailer.h"
 #include "ClusterConnectionBase.h"
+#include "FileProvenanceJanusGraph.h"
+#include "JanusGraphBase.h"
+#include "FileProvenanceGremlinDataReader.h"
+#include "AppProvenanceGremlinDataReader.h"
 
 class Notifier : public ClusterConnectionBase {
 public:
   Notifier(const char* connection_string, const char* database_name, const char* meta_database_name,
           const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, const TableUnitConf provenance_tu,
           const int poll_maxTimeToWait, const string elastic_addr, const bool hopsworks, const string elastic_index, const string elastic_provenance_index,
-          const int elastic_batch_size, const int elastic_issue_time, const int lru_cap, const bool recovery, const bool stats,
+          const int elastic_batch_size, const int elastic_issue_time, const int lru_cap, const bool recovery, const bool stats, const string janusgraph_ip,
           Barrier barrier);
   void start();
   virtual ~Notifier();
@@ -61,6 +66,7 @@ private:
   const int mLRUCap;
   const bool mRecovery;
   const bool mStats;
+  const string mJanusGraphAddr;
   const Barrier mBarrier;
 
   ProjectsElasticSearch* mProjectsElasticSearch;
@@ -79,11 +85,18 @@ private:
 
   HopsworksOpsLogTailer* mhopsworksOpsLogTailer;
 
-  // ProvenanceTableTailer* mProvenanceTableTailer;
-  // ProvenanceDataReaders* mProvenanceDataReaders;
-  // ProvenanceBatcher* mProvenanceBatcher;
+  ProvenanceElasticSearch* mFileProvenancElasticSearch;
+  
+  FileProvenanceTableTailer* mFileProvenanceTableTailer;
+  NdbDataReaders<FileProvenanceRow, SConn, PKeys>* mFileProvenanceDataReaders;
+  RCBatcher<FileProvenanceRow, SConn, PKeys>* mFileProvenanceBatcher;
+  FileProvenanceJanusGraph* mFileProvenanceJanusGraph;
 
-  // ProvenanceElasticSearch* mProvenancElasticSearch;
+
+  AppProvenanceTableTailer* mAppProvenanceTableTailer;
+  NdbDataReaders<AppProvenanceRow, SConn, AppPKeys>* mAppProvenanceDataReaders;
+  RCBatcher<AppProvenanceRow, SConn, AppPKeys>* mAppProvenanceBatcher;
+  AppProvenanceJanusGraph* mAppProvenanceJanusGraph;
 
   void setup();
 };

@@ -69,8 +69,10 @@ void Batcher::timerThread() {
     mIOService.reset();
     int timeout = mTimeToWait;
     if (mFirstTimer) {
-      int baseTime = mTimeToWait / 4;
-      timeout = rand() % (mTimeToWait - baseTime) + baseTime;
+      if(mTimeToWait != 0) {
+        int baseTime = mTimeToWait / 4;
+        timeout = rand() % (mTimeToWait - baseTime) + baseTime;
+      }
       mFirstTimer = false;
       LOG_TRACE("fire the first timer after " << timeout << " msec");
     }
