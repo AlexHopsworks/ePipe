@@ -16,77 +16,83 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceLogTable.h
+ * File:   FileProvenanceLogTable.h
  * Author: Mahmoud Ismail <maism@kth.se>
  *
  */
 
-#ifndef PROVENANCELOGTABLE_H
-#define PROVENANCELOGTABLE_H
+#ifndef FILEPROVENANCELOGTABLE_H
+#define FILEPROVENANCELOGTABLE_H
 #include "DBWatchTable.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/document.h"
 
 #include "ConcurrentPriorityQueue.h"
 #include "ConcurrentQueue.h"
 
-struct ProvenancePK {
+struct FileProvenancePK {
   Int64 mInodeId;
-  int mUserId;
-  string mAppId;
+  string mOperation;
   int mLogicalTime;
-
-  ProvenancePK(Int64 inodeId, int userId, string appId, int logicalTime) {
+  string mAppId;
+  int mUserId;
+  Int64 mTimestamp;
+  
+  FileProvenancePK(Int64 inodeId, string operation, int logicalTime, string appId, int userId, Int64 timestamp) {
     mInodeId = inodeId;
-    mUserId = userId;
-    mAppId = appId;
+    mOperation = operation;
     mLogicalTime = logicalTime;
+    mAppId = appId;
+    mUserId = userId;
+    mTimestamp = timestamp;
   }
 
   string to_string() {
     stringstream out;
-    out << mInodeId << "-" << mUserId << "-" << mLogicalTime << "-" << mAppId;
+    out << mInodeId << "-" << mOperation << "-" << mLogicalTime << "-" << mAppId << "-" << mUserId << "-" << mTimestamp;
     return out.str();
   }
 };
 
-struct ProvenanceRow {
+struct FileProvenanceRow {
   Int64 mInodeId;
-  int mUserId;
-  string mAppId;
+  string mOperation;
   int mLogicalTime;
-  Int64 mPartitionId;
-  Int64 mParentId;
-  string mProjectName;
-  string mDatasetName;
-  string mInodeName;
-  string mUserName;
-  int mLogicalTimeBatch;
+  string mAppId;
+  int mUserId;
   Int64 mTimestamp;
+  Int64 mParentId;
+  Int64 mProjectId;
+  Int64 mDatasetId;
+  string mInodeName;
+  int mLogicalTimeBatch;
   Int64 mTimestampBatch;
-  short mOperation;
-
+  Int64 mPartitionId;
+  string mPath;
   ptime mEventCreationTime;
 
-  ProvenancePK getPK() {
-    return ProvenancePK(mInodeId, mUserId, mAppId, mLogicalTime);
+  FileProvenancePK getPK() {
+    return FileProvenancePK(mInodeId, mOperation, mLogicalTime, mAppId, mUserId, mTimestamp);
   }
 
   string to_string() {
     stringstream stream;
     stream << "-------------------------" << endl;
     stream << "InodeId = " << mInodeId << endl;
-    stream << "UserId = " << mUserId << endl;
-    stream << "AppId = " << mAppId << endl;
-    stream << "LogicalTime = " << mLogicalTime << endl;
-    stream << "PartitionId = " << mPartitionId << endl;
-    stream << "ParentId = " << mParentId << endl;
-    stream << "ProjectName = " << mProjectName << endl;
-    stream << "DatasetName = " << mDatasetName << endl;
-    stream << "InodeName = " << mInodeName << endl;
-    stream << "UserName = " << mUserName << endl;
-    stream << "LogicalTimeBatch = " << mLogicalTimeBatch << endl;
-    stream << "Timestamp = " << mTimestamp << endl;
-    stream << "TimestampBatch = " << mTimestampBatch << endl;
     stream << "Operation = " << mOperation << endl;
+    stream << "LogicalTime = " << mLogicalTime << endl;
+    stream << "AppId = " << mAppId << endl;
+    stream << "UserId = " << mUserId << endl;
+    stream << "Timestamp = " << mTimestamp << endl;
+    stream << "ParentId = " << mParentId << endl;
+    stream << "ProjectId = " << mProjectId << endl;
+    stream << "DatasetId = " << mDatasetId << endl;
+    stream << "InodeName = " << mInodeName << endl;
+    stream << "LogicalTimeBatch = " << mLogicalTimeBatch << endl;
+    stream << "TimestampBatch = " << mTimestampBatch << endl;
+    stream << "PartitionId = " << mPartitionId << endl;
+    stream << "Path = " << mPath << endl;
     stream << "-------------------------" << endl;
     return stream.str();
   }
@@ -135,17 +141,14 @@ struct ProvenanceRow {
     docWriter.String("parent_id");
     docWriter.Int64(mParentId);
 
-    docWriter.String("project_name");
-    docWriter.String(mProjectName.c_str());
+    docWriter.String("project_id");
+    docWriter.Int64(mProjectId);
 
-    docWriter.String("dataset_name");
-    docWriter.String(mDatasetName.c_str());
+    docWriter.String("dataset_id");
+    docWriter.Int64(mDatasetId);
 
     docWriter.String("inode_name");
     docWriter.String(mInodeName.c_str());
-
-    docWriter.String("user_name");
-    docWriter.String(mUserName.c_str());
 
     docWriter.String("logical_time_batch");
     docWriter.Int(mLogicalTimeBatch);
@@ -157,7 +160,7 @@ struct ProvenanceRow {
     docWriter.Int64(mTimestampBatch);
 
     docWriter.String("operation");
-    docWriter.Int(mOperation);
+    docWriter.String(mOperation.c_str());
 
     docWriter.EndObject();
 
@@ -171,29 +174,32 @@ struct ProvenanceRow {
   }
 };
 
-struct ProvenanceRowEqual {
+struct FileProvenanceRowEqual {
 
-  bool operator()(const ProvenanceRow &lhs, const ProvenanceRow &rhs) const {
+  bool operator()(const FileProvenanceRow &lhs, const FileProvenanceRow &rhs) const {
     return lhs.mInodeId == rhs.mInodeId && lhs.mUserId == rhs.mUserId
             && lhs.mAppId == rhs.mAppId && lhs.mLogicalTime == rhs.mLogicalTime;
   }
 };
 
-struct ProvenanceRowHash {
+struct FileProvenanceRowHash {
 
-  std::size_t operator()(const ProvenanceRow &a) const {
+  std::size_t operator()(const FileProvenanceRow &a) const {
     std::size_t seed = 0;
     boost::hash_combine(seed, a.mInodeId);
-    boost::hash_combine(seed, a.mUserId);
-    boost::hash_combine(seed, a.mAppId);
     boost::hash_combine(seed, a.mLogicalTime);
+    boost::hash_combine(seed, a.mOperation);
+    boost::hash_combine(seed, a.mAppId);
+    boost::hash_combine(seed, a.mUserId);
+    boost::hash_combine(seed, a.mTimestamp);
+    
     return seed;
   }
 };
 
-struct ProvenanceRowComparator {
+struct FileProvenanceRowComparator {
 
-  bool operator()(const ProvenanceRow &r1, const ProvenanceRow &r2) const {
+  bool operator()(const FileProvenanceRow &r1, const FileProvenanceRow &r2) const {
     if (r1.mInodeId == r2.mInodeId) {
       return r1.mLogicalTime > r2.mLogicalTime;
     } else {
@@ -202,70 +208,73 @@ struct ProvenanceRowComparator {
   }
 };
 
-typedef ConcurrentQueue<ProvenanceRow> CPRq;
-typedef boost::heap::priority_queue<ProvenanceRow, boost::heap::compare<ProvenanceRowComparator> > PRpq;
-typedef vector<ProvenancePK> PKeys;
-typedef vector<ProvenanceRow> Pq;
+typedef ConcurrentQueue<FileProvenanceRow> CPRq;
+typedef boost::heap::priority_queue<FileProvenanceRow, boost::heap::compare<FileProvenanceRowComparator> > PRpq;
+typedef vector<FileProvenancePK> PKeys;
+typedef vector<FileProvenanceRow> Pq;
 
-typedef vector<ProvenanceRow> Pv;
+typedef vector<FileProvenanceRow> Pv;
 typedef boost::unordered_map<Uint64, Pv* > ProvenanceRowsByGCI;
 typedef boost::tuple<vector<Uint64>*, ProvenanceRowsByGCI* > ProvenanceRowsGCITuple;
 
-class ProvenanceLogTable : public DBWatchTable<ProvenanceRow> {
+class FileProvenanceLogTable : public DBWatchTable<FileProvenanceRow> {
 public:
 
-  ProvenanceLogTable() : DBWatchTable("hdfs_provenance_log") {
+  FileProvenanceLogTable() : DBWatchTable("hdfs_file_provenance_log") {
     addColumn("inode_id");
-    addColumn("user_id");
-    addColumn("app_id");
-    addColumn("logical_time");
-    addColumn("partition_id");
-    addColumn("parent_id");
-    addColumn("project_name");
-    addColumn("dataset_name");
-    addColumn("inode_name");
-    addColumn("user_name");
-    addColumn("logical_time_batch");
-    addColumn("timestamp");
-    addColumn("timestamp_batch");
     addColumn("operation");
+    addColumn("logical_time");
+    addColumn("app_id");
+    addColumn("user_id");
+    addColumn("timestamp");
+    addColumn("parent_id");
+    addColumn("project_id");
+    addColumn("dataset_id");
+    addColumn("inode_name");
+    addColumn("logical_time_batch");
+    addColumn("timestamp_batch");
+    addColumn("partition_id");
+    addColumn("path");
     addRecoveryIndex("logical_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
   }
 
-  ProvenanceRow getRow(NdbRecAttr* value[]) {
-    ProvenanceRow row;
+  FileProvenanceRow getRow(NdbRecAttr* value[]) {
+    LOG_DEBUG("Get file provenance row: ");
+    FileProvenanceRow row;
     row.mEventCreationTime = Utils::getCurrentTime();
     row.mInodeId = value[0]->int64_value();
-    row.mUserId = value[1]->int32_value();
-    row.mAppId = get_string(value[2]);
-    row.mLogicalTime = value[3]->int32_value();
-    row.mPartitionId = value[4]->int64_value();
-    row.mParentId = value[5]->int64_value();
-    row.mProjectName = get_string(value[6]);
-    row.mDatasetName = get_string(value[7]);
-    row.mInodeName = get_string(value[8]);
-    row.mUserName = get_string(value[9]);
+    row.mOperation = get_string(value[1]);
+    row.mLogicalTime = value[2]->int32_value();
+    row.mAppId = get_string(value[3]);
+    row.mUserId = value[4]->int32_value();
+    row.mTimestamp = value[5]->int64_value();
+    row.mParentId = value[6]->int64_value();
+    row.mProjectId = value[7]->int64_value();
+    row.mDatasetId = value[8]->int64_value();
+    row.mInodeName = get_string(value[9]);
     row.mLogicalTimeBatch = value[10]->int32_value();
-    row.mTimestamp = value[11]->int64_value();
-    row.mTimestampBatch = value[12]->int64_value();
-    row.mOperation = value[13]->int8_value();
+    row.mTimestampBatch = value[11]->int64_value();
+    row.mPartitionId = value[12]->int64_value();
+    row.mPath = get_string(value[13]);
+    LOG_DEBUG("Got file provenance row: ");
     return row;
   }
 
   void removeLogs(Ndb* connection, PKeys& pks) {
     start(connection);
     for (PKeys::iterator it = pks.begin(); it != pks.end(); ++it) {
-      ProvenancePK pk = *it;
+      FileProvenancePK pk = *it;
       AnyMap a;
       a[0] = pk.mInodeId;
-      a[1] = pk.mUserId;
-      a[2] = pk.mAppId;
-      a[3] = pk.mLogicalTime;
+      a[1] = pk.mOperation;
+      a[2] = pk.mLogicalTime;
+      a[3] = pk.mAppId;
+      a[4] = pk.mUserId;
+      a[5] = pk.mTimestamp;
+      
       doDelete(a);
-      LOG_DEBUG("Delete log row: App[" << pk.mAppId << "], INode["
-              << pk.mInodeId << "], User[" << pk.mUserId << "], Timestamp["
-              << pk.mLogicalTime << "]");
+      LOG_DEBUG("Delete file provenance row: " << pk.to_string());
     }
     end();
   }
@@ -273,5 +282,5 @@ public:
 };
 
 
-#endif /* PROVENANCELOGTABLE_H */
+#endif /* FILEPROVENANCELOGTABLE_H */
 

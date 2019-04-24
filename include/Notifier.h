@@ -32,7 +32,6 @@
 #include "SchemalessMetadataBatcher.h"
 #include "HopsworksOpsLogTailer.h"
 #include "MetadataLogTailer.h"
-#include "ProvenanceBatcher.h"
 #include "ClusterConnectionBase.h"
 
 class Notifier : public ClusterConnectionBase {
@@ -80,11 +79,11 @@ private:
 
   HopsworksOpsLogTailer* mhopsworksOpsLogTailer;
 
-  ProvenanceTableTailer* mProvenanceTableTailer;
-  ProvenanceDataReaders* mProvenanceDataReaders;
-  ProvenanceBatcher* mProvenanceBatcher;
+  // ProvenanceTableTailer* mProvenanceTableTailer;
+  // ProvenanceDataReaders* mProvenanceDataReaders;
+  // ProvenanceBatcher* mProvenanceBatcher;
 
-  ProvenanceElasticSearch* mProvenancElasticSearch;
+  // ProvenanceElasticSearch* mProvenancElasticSearch;
 
   void setup();
 };
