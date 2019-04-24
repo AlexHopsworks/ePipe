@@ -16,36 +16,41 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceDataReader.h
+ * File:   FileProvenanceDataReader.h
  * Author: Mahmoud Ismail <maism@kth.se>
  *
  */
 
-#ifndef PROVENANCEDATAREADER_H
-#define PROVENANCEDATAREADER_H
+#ifndef FILEPROVENANCEDATAREADER_H
+#define FILEPROVENANCEDATAREADER_H
 
 #include "NdbDataReaders.h"
-#include "ProvenanceElasticSearch.h"
+#include "FileProvenanceTableTailer.h"
+#include "TimedRestBatcher.h"
+// #include "ProvenanceElasticSearch.h"
+// #include "FileProvenanceJanusGraph.h"
+#include "boost/optional.hpp"
 
-class ProvenanceDataReader : public NdbDataReader<ProvenanceRow, SConn, PKeys> {
+class FileProvenanceDataReader : public NdbDataReader<FileProvenanceRow, SConn, PKeys> {
 public:
-  ProvenanceDataReader(SConn connection, const bool hopsworks);
-  virtual ~ProvenanceDataReader();
+  FileProvenanceDataReader(SConn connection, const bool hopsworks);
+  virtual ~FileProvenanceDataReader();
 private:
-  virtual void processAddedandDeleted(Pq* data_batch, PBulk& bulk);
+  virtual void processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk);
 };
 
-class ProvenanceDataReaders :  public NdbDataReaders<ProvenanceRow, SConn, PKeys>{
+class ProvenanceDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, PKeys>{
   public:
     ProvenanceDataReaders(SConn* connections, int num_readers,const bool hopsworks,
-          ProvenanceElasticSearch* elastic) : NdbDataReaders(elastic){
+          TimedRestBatcher<PKeys>* restEndpoint) : 
+    NdbDataReaders(restEndpoint){
       for(int i=0; i<num_readers; i++){
-        ProvenanceDataReader* dr = new ProvenanceDataReader(connections[i], hopsworks);
+        FileProvenanceDataReader* dr = new FileProvenanceDataReader(connections[i], hopsworks);
         dr->start(i, this);
         mDataReaders.push_back(dr);
       }
     }
 };
 
-#endif /* PROVENANCEDATAREADER_H */
+#endif /* FILEPROVENANCEDATAREADER_H */
 

@@ -25,7 +25,7 @@
 #define PROVENANCEELASTICSEARCH_H
 
 #include "ElasticSearchBase.h"
-#include "ProvenanceTableTailer.h"
+#include "FileProvenanceTableTailer.h"
 
 typedef Bulk<PKeys> PBulk;
 

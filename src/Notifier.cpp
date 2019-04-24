@@ -23,7 +23,6 @@
  */
 
 #include "Notifier.h"
-#include "ProvenanceBatcher.h"
 
 Notifier::Notifier(const char* connection_string, const char* database_name, const char* meta_database_name,
         const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, TableUnitConf provenance_tu,
@@ -69,12 +68,12 @@ void Notifier::start() {
     mhopsworksOpsLogTailer->start(mRecovery);
   }
 
-  if (mProvenanceTU.isEnabled()) {
-    mProvenancElasticSearch->start();
-    mProvenanceDataReaders->start();
-    mProvenanceBatcher->start();
-    mProvenanceTableTailer->start(mRecovery);
-  }
+  // if (mProvenanceTU.isEnabled()) {
+  //   mProvenancElasticSearch->start();
+  //   mProvenanceDataReaders->start();
+  //   mProvenanceBatcher->start();
+  //   mProvenanceTableTailer->start(mRecovery);
+  // }
 
   ptime t2 = getCurrentTime();
   LOG_INFO("ePipe started in " << getTimeDiffInMilliseconds(t1, t2) << " msec");
@@ -103,11 +102,11 @@ void Notifier::start() {
     mhopsworksOpsLogTailer->waitToFinish();
   }
 
-  if (mProvenanceTU.isEnabled()) {
-    mProvenanceBatcher->waitToFinish();
-    mProvenanceTableTailer->waitToFinish();
-    mProvenancElasticSearch->waitToFinish();
-  }
+  // if (mProvenanceTU.isEnabled()) {
+  //   mProvenanceBatcher->waitToFinish();
+  //   mProvenanceTableTailer->waitToFinish();
+  //   mProvenancElasticSearch->waitToFinish();
+  // }
 }
 
 void Notifier::setup() {
@@ -178,25 +177,25 @@ void Notifier::setup() {
             mProjectsElasticSearch, mLRUCap);
   }
 
-  if (mProvenanceTU.isEnabled()) {
-    Ndb* ndb_elastic_provenance_conn = create_ndb_connection(mDatabaseName);
-    mProvenancElasticSearch = new ProvenanceElasticSearch(mElasticAddr,
-            mElasticProvenanceIndex, mElasticIssueTime,
-            mElasticBatchsize, mStats, ndb_elastic_provenance_conn);
+  // if (mProvenanceTU.isEnabled()) {
+  //   Ndb* ndb_elastic_provenance_conn = create_ndb_connection(mDatabaseName);
+  //   mProvenancElasticSearch = new ProvenanceElasticSearch(mElasticAddr,
+  //           mElasticProvenanceIndex, mElasticIssueTime,
+  //           mElasticBatchsize, mStats, ndb_elastic_provenance_conn);
 
 
-    Ndb* provenance_tailer_connection = create_ndb_connection(mDatabaseName);
-    mProvenanceTableTailer = new ProvenanceTableTailer(provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
+  //   Ndb* provenance_tailer_connection = create_ndb_connection(mDatabaseName);
+  //   mProvenanceTableTailer = new ProvenanceTableTailer(provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
 
-    SConn* provenance_connections = new SConn[mProvenanceTU.mNumReaders];
-    for (int i = 0; i < mProvenanceTU.mNumReaders; i++) {
-      provenance_connections[i] = create_ndb_connection(mDatabaseName);
-    }
-    mProvenanceDataReaders = new ProvenanceDataReaders(provenance_connections, mProvenanceTU.mNumReaders,
-            mHopsworksEnabled, mProvenancElasticSearch);
-    mProvenanceBatcher = new ProvenanceBatcher(mProvenanceTableTailer, mProvenanceDataReaders,
-            mProvenanceTU.mWaitTime, mProvenanceTU.mBatchSize);
-  }
+  //   SConn* provenance_connections = new SConn[mProvenanceTU.mNumReaders];
+  //   for (int i = 0; i < mProvenanceTU.mNumReaders; i++) {
+  //     provenance_connections[i] = create_ndb_connection(mDatabaseName);
+  //   }
+  //   mProvenanceDataReaders = new ProvenanceDataReaders(provenance_connections, mProvenanceTU.mNumReaders,
+  //           mHopsworksEnabled, mProvenancElasticSearch);
+  //   mProvenanceBatcher = new ProvenanceBatcher(mProvenanceTableTailer, mProvenanceDataReaders,
+  //           mProvenanceTU.mWaitTime, mProvenanceTU.mBatchSize);
+  // }
 }
 
 Notifier::~Notifier() {
