@@ -27,6 +27,8 @@
 #include "NdbDataReader.h"
 #include "ConcurrentPriorityQueue.h"
 #include <boost/atomic.hpp>
+#include "boost/optional.hpp"
+#include "JanusGraphBase.h"
 
 typedef boost::atomic<Uint64> AtomicLong;
 

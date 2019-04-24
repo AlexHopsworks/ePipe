@@ -59,7 +59,7 @@ void FileProvenanceTableTailer::barrierChanged() {
 FileProvenanceRow FileProvenanceTableTailer::consume() {
   FileProvenanceRow row;
   mQueue->wait_and_pop(row);
-  LOG_TRACE(" pop inode [" << row.mInodeId << "] from queue \n" << row.to_string());
+  LOG_DEBUG(" pop inode [" << row.mInodeId << "] from queue \n" << row.to_string());
   return row;
 }
 
@@ -73,7 +73,7 @@ void FileProvenanceTableTailer::pushToQueue(PRpq *curr) {
 
 void FileProvenanceTableTailer::pushToQueue(Pv* curr) {
   std::sort(curr->begin(), curr->end(), FileProvenanceRowComparator());
-  for (Pv::iterator it = curr->begin(); it != curr->end(); ++it) {
+  for (Pv::reverse_iterator it = curr->rbegin(); it != curr->rend(); ++it) {
     mQueue->push(*it);
   }
   delete curr;
