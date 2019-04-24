@@ -16,27 +16,16 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceBatcher.h
- * Author: Mahmoud Ismail <maism@kth.se>
+ * File:   FileProvenanceXAttrTBinTable.h
+ * Author: Alexandru Ormenisan <aaor@kth.se>
  *
  */
 
-#ifndef PROVENANCEBATCHER_H
-#define PROVENANCEBATCHER_H
-#include "RCBatcher.h"
-#include "ProvenanceTableTailer.h"
-#include "ProvenanceDataReader.h"
+#ifndef FILEPROVENANCEXATTRTBINTABLE_H
+#define FILEPROVENANCEXATTRTBINTABLE_H
 
-class ProvenanceBatcher : public RCBatcher<ProvenanceRow, SConn, PKeys> {
-public:
+#include "XAttrTable.h"
 
-  ProvenanceBatcher(ProvenanceTableTailer* table_tailer, ProvenanceDataReaders* data_reader,
-          const int time_before_issuing_ndb_reqs, const int batch_size)
-  : RCBatcher(table_tailer, data_reader, time_before_issuing_ndb_reqs, batch_size) {
-
-  }
-
+class FileProvenanceXAttrTBinTable : public XAttrTable("hdfs_file_provenance_trashbin_xattrs") {
 };
-
-#endif /* PROVENANCEBATCHER_H */
-
+#endif /* FILEPROVENANCEXATTRTBINTABLE_H */

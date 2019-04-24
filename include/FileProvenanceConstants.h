@@ -16,36 +16,17 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 /* 
- * File:   ProvenanceElasticSearch.h
- * Author: Mahmoud Ismail <maism@kth.se>
- *
+ * File:   FileProvenanceConstants.h
+ * Author: Alexandru Ormenisan <aaor@kth.se>
+ * 
  */
+#ifndef FILEPROVENANCECONSTANTS_H
+#define FILEPROVENANCECONSTANTS_H
 
-#ifndef PROVENANCEELASTICSEARCH_H
-#define PROVENANCEELASTICSEARCH_H
+namespace FileProvenanceConstants {
+  const string FILE_PROV_XATTRS_FEATURES = "features";
+  const string FILE_PROV_XATTRS_TRAINING_DATASETS = "training_datasets";
+  const Int8 FILE_PROV_XATTRS_USER_NAMESPACE = 0;
+}
 
-#include "ElasticSearchBase.h"
-#include "FileProvenanceTableTailer.h"
-
-typedef Bulk<PKeys> PBulk;
-
-class ProvenanceElasticSearch : public ElasticSearchBase<PKeys> {
-public:
-  ProvenanceElasticSearch(string elastic_addr, string index,
-          int time_to_wait_before_inserting, int bulk_size, const bool stats,
-          SConn conn);
-  virtual ~ProvenanceElasticSearch();
-private:
-  const string mIndex;
-  const bool mStats;
-
-  string mElasticBulkAddr;
-
-  SConn mConn;
-
-  virtual void process(vector<PBulk>* bulks);
-
-};
-
-#endif /* PROVENANCEELASTICSEARCH_H */
-
+#endif /* FILEPROVENANCECONSTANTS_H */

@@ -17,25 +17,25 @@
  */
 
 /*
- * File:   ProvenanceTableTailer.h
+ * File:   FileProvenanceTableTailer.h
  * Author: Mahmoud Ismail<maism@kth.se>
  *
  */
 
-#ifndef PROVENANCETABLETAILER_H
-#define PROVENANCETABLETAILER_H
+#ifndef FILEPROVENANCETABLETAILER_H
+#define FILEPROVENANCETABLETAILER_H
 
 #include "RCTableTailer.h"
-#include "tables/ProvenanceLogTable.h"
+#include "tables/FileProvenanceLogTable.h"
 
-class ProvenanceTableTailer : public RCTableTailer<ProvenanceRow> {
+class FileProvenanceTableTailer : public RCTableTailer<FileProvenanceRow> {
 public:
-  ProvenanceTableTailer(Ndb* ndb, const int poll_maxTimeToWait, const Barrier barrier);
-  ProvenanceRow consume();
-  virtual ~ProvenanceTableTailer();
+  FileProvenanceTableTailer(Ndb* ndb, const int poll_maxTimeToWait, const Barrier barrier);
+  FileProvenanceRow consume();
+  virtual ~FileProvenanceTableTailer();
 
 private:
-  virtual void handleEvent(NdbDictionary::Event::TableEvent eventType, ProvenanceRow pre, ProvenanceRow row);
+  virtual void handleEvent(NdbDictionary::Event::TableEvent eventType, FileProvenanceRow pre, FileProvenanceRow row);
   void barrierChanged();
 
   void recover();
@@ -50,4 +50,4 @@ private:
 };
 
 
-#endif //PROVENANCETABLETAILER_H
+#endif //FILEPROVENANCETABLETAILER_H

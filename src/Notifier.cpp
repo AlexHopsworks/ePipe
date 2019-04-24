@@ -23,16 +23,16 @@
  */
 
 #include "Notifier.h"
-#include "ProvenanceBatcher.h"
 
 Notifier::Notifier(const char* connection_string, const char* database_name, const char* meta_database_name,
-        const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, TableUnitConf provenance_tu,
-        const int poll_maxTimeToWait, const string elastic_ip, const bool hopsworks, const string elastic_index, const string elastic_provenance_index,
+        const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, TableUnitConf elastic_provenance_tu,
+        const int poll_maxTimeToWait, const string elastic_ip, const bool hopsworks, const string elastic_index, 
+        const string elastic_file_provenance_index, const string elastic_app_provenance_index,
         const int elastic_batch_size, const int elastic_issue_time, const int lru_cap, const bool recovery,
         const bool stats, Barrier barrier)
 : ClusterConnectionBase(connection_string, database_name, meta_database_name), mMutationsTU(mutations_tu), mSchemabasedTU(schemabased_tu),
-mSchemalessTU(schemaless_tu), mProvenanceTU(provenance_tu), mPollMaxTimeToWait(poll_maxTimeToWait), mElasticAddr(elastic_ip), mHopsworksEnabled(hopsworks),
-mElasticIndex(elastic_index), mElasticProvenanceIndex(elastic_provenance_index),
+mSchemalessTU(schemaless_tu), mElasticProvenanceTU(elastic_provenance_tu), mPollMaxTimeToWait(poll_maxTimeToWait), mElasticAddr(elastic_ip), mHopsworksEnabled(hopsworks),
+mElasticIndex(elastic_index), mElasticFileProvenanceIndex(elastic_file_provenance_index), mElasticAppProvenanceIndex(elastic_app_provenance_index),
 mElasticBatchsize(elastic_batch_size), mElasticIssueTime(elastic_issue_time), mLRUCap(lru_cap),
 mRecovery(recovery), mStats(stats), mBarrier(barrier) {
   setup();
@@ -69,11 +69,16 @@ void Notifier::start() {
     mhopsworksOpsLogTailer->start(mRecovery);
   }
 
-  if (mProvenanceTU.isEnabled()) {
-    mProvenancElasticSearch->start();
-    mProvenanceDataReaders->start();
-    mProvenanceBatcher->start();
-    mProvenanceTableTailer->start(mRecovery);
+  if (mElasticProvenanceTU.isEnabled()) {
+    mFileProvenanceElastic->start();
+    mFileProvenanceElasticDataReaders->start();
+    mFileProvenanceBatcher->start();
+    mFileProvenanceTableTailer->start(mRecovery);
+
+    mAppProvenanceElastic->start();
+    mAppProvenanceElasticDataReaders->start();
+    mAppProvenanceBatcher->start();
+    mAppProvenanceTableTailer->start(mRecovery);
   }
 
   ptime t2 = getCurrentTime();
@@ -103,10 +108,14 @@ void Notifier::start() {
     mhopsworksOpsLogTailer->waitToFinish();
   }
 
-  if (mProvenanceTU.isEnabled()) {
-    mProvenanceBatcher->waitToFinish();
-    mProvenanceTableTailer->waitToFinish();
-    mProvenancElasticSearch->waitToFinish();
+  if (mElasticProvenanceTU.isEnabled()) {
+    mFileProvenanceBatcher->waitToFinish();
+    mFileProvenanceTableTailer->waitToFinish();
+    mFileProvenanceElastic->waitToFinish();
+
+    mAppProvenanceBatcher->waitToFinish();
+    mAppProvenanceTableTailer->waitToFinish();
+    mAppProvenanceElastic->waitToFinish();
   }
 }
 
@@ -178,24 +187,41 @@ void Notifier::setup() {
             mProjectsElasticSearch, mLRUCap);
   }
 
-  if (mProvenanceTU.isEnabled()) {
-    Ndb* ndb_elastic_provenance_conn = create_ndb_connection(mDatabaseName);
-    mProvenancElasticSearch = new ProvenanceElasticSearch(mElasticAddr,
-            mElasticProvenanceIndex, mElasticIssueTime,
-            mElasticBatchsize, mStats, ndb_elastic_provenance_conn);
+  if (mElasticProvenanceTU.isEnabled()) {
+    //file
+    Ndb* ndb_elastic_file_provenance_conn = create_ndb_connection(mDatabaseName);
+    mFileProvenanceElastic = new FileProvenanceElastic(mElasticAddr, mElasticFileProvenanceIndex, 
+      mElasticIssueTime, mElasticBatchsize, mStats, ndb_elastic_file_provenance_conn);
 
+    Ndb* elastic_file_provenance_tailer_connection = create_ndb_connection(mDatabaseName);
+    mFileProvenanceTableTailer = new FileProvenanceTableTailer(elastic_file_provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
 
-    Ndb* provenance_tailer_connection = create_ndb_connection(mDatabaseName);
-    mProvenanceTableTailer = new ProvenanceTableTailer(provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
-
-    SConn* provenance_connections = new SConn[mProvenanceTU.mNumReaders];
-    for (int i = 0; i < mProvenanceTU.mNumReaders; i++) {
-      provenance_connections[i] = create_ndb_connection(mDatabaseName);
+    SConn* elastic_file_provenance_connections = new SConn[mElasticProvenanceTU.mNumReaders];
+    for (int i = 0; i < mElasticProvenanceTU.mNumReaders; i++) {
+      elastic_file_provenance_connections[i] = create_ndb_connection(mDatabaseName);
     }
-    mProvenanceDataReaders = new ProvenanceDataReaders(provenance_connections, mProvenanceTU.mNumReaders,
-            mHopsworksEnabled, mProvenancElasticSearch);
-    mProvenanceBatcher = new ProvenanceBatcher(mProvenanceTableTailer, mProvenanceDataReaders,
-            mProvenanceTU.mWaitTime, mProvenanceTU.mBatchSize);
+    mFileProvenanceElasticDataReaders = new FileProvenanceElasticDataReaders(elastic_file_provenance_connections, 
+      mElasticProvenanceTU.mNumReaders, mHopsworksEnabled, mFileProvenanceElastic);
+    mFileProvenanceBatcher = new RCBatcher<FileProvenanceRow, SConn, PKeys>(
+      mFileProvenanceTableTailer, mFileProvenanceElasticDataReaders,
+      mElasticProvenanceTU.mWaitTime, mElasticProvenanceTU.mBatchSize);
+    //app
+    Ndb* ndb_elastic_app_provenance_conn = create_ndb_connection(mDatabaseName);
+    mAppProvenanceElastic = new AppProvenanceElastic(mElasticAddr, mElasticAppProvenanceIndex, 
+      mElasticIssueTime, mElasticBatchsize, mStats, ndb_elastic_app_provenance_conn);
+
+    Ndb* elastic_app_provenance_tailer_connection = create_ndb_connection(mDatabaseName);
+    mAppProvenanceTableTailer = new AppProvenanceTableTailer(elastic_app_provenance_tailer_connection, mPollMaxTimeToWait, mBarrier);
+
+    SConn* elastic_app_provenance_connections = new SConn[mElasticProvenanceTU.mNumReaders];
+    for (int i = 0; i < mElasticProvenanceTU.mNumReaders; i++) {
+      elastic_app_provenance_connections[i] = create_ndb_connection(mDatabaseName);
+    }
+    mAppProvenanceElasticDataReaders = new AppProvenanceElasticDataReaders(elastic_app_provenance_connections, 
+      mElasticProvenanceTU.mNumReaders, mHopsworksEnabled, mAppProvenanceElastic);
+    mAppProvenanceBatcher = new RCBatcher<AppProvenanceRow, SConn, AppPKeys>(
+      mAppProvenanceTableTailer, mAppProvenanceElasticDataReaders,
+      mElasticProvenanceTU.mWaitTime, mElasticProvenanceTU.mBatchSize);
   }
 }
 

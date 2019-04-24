@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
   string meta_database_name = "hopsworks";
   int poll_maxTimeToWait = 2000;
   string elastic_addr = "localhost:9200";
+  string janusgraph_addr = "localhost:8182";
   int log_level = 2;
 
   TableUnitConf mutations_tu = TableUnitConf();
@@ -47,7 +48,8 @@ int main(int argc, char** argv) {
   int elastic_batch_size = 5000;
   int elastic_issue_time = 5000;
 
-  string elastic_provenance_index = "provenance";
+  string elastic_file_provenance_index = "fileprovenance";
+  string elastic_app_provenance_index = "appprovenance";
 
   int lru_cap = DEFAULT_MAX_CAPACITY;
   bool recovery = true;
@@ -69,9 +71,11 @@ int main(int argc, char** argv) {
           ("provenance_tu", po::value< vector<int> >()->default_value(provenance_tu.getVector(), provenance_tu.getString())->multitoken(), "WAIT_TIME BATCH_SIZE NUM_READERS")
           ("schemaless_tu", po::value< vector<int> >()->default_value(schemaless_tu.getVector(), schemaless_tu.getString())->multitoken(), "WAIT_TIME BATCH_SIZE NUM_READERS \nWAIT_TIME is the time to wait in miliseconds before issuing the ndb request if the batch size wasn't reached.\nBATCH_SIZE is the batch size for reading from ndb\nNUM_READERS is the num of threads used for reading from ndb and processing the data. The watch unit is disabled if set to 0 0 0.")
           ("elastic_addr", po::value<string>(&elastic_addr)->default_value(elastic_addr), "ip and port of the elasticsearch server")
+          ("janusgraph_addr", po::value<string>(&janusgraph_addr)->default_value(janusgraph_addr), "ip and port of the janusgraph(gremlin) server")
           ("hopsworks", po::value<bool>(&hopsworks)->default_value(hopsworks), "enable or disable hopsworks, which will use grandparents to index inodes and metadata")
           ("index", po::value<string>(&elastic_index)->default_value(elastic_index), "Elastic index to add the data to.")
-          ("provenance_index", po::value<string>(&elastic_provenance_index)->default_value(elastic_provenance_index), "Elastic index to add the provenance data to.")
+          ("file_provenance_index", po::value<string>(&elastic_file_provenance_index)->default_value(elastic_file_provenance_index), "Elastic index to add the file provenance data to.")
+          ("app_provenance_index", po::value<string>(&elastic_app_provenance_index)->default_value(elastic_app_provenance_index), "Elastic index to add the app provenance data to.")
           ("elastic_batch", po::value<int>(&elastic_batch_size)->default_value(elastic_batch_size), "Elastic batch size in bytes for bulk requests")
           ("ewait_time", po::value<int>(&elastic_issue_time)->default_value(elastic_issue_time), "time to wait in miliseconds before issuing a bulk request to Elasticsearch if the batch size wasn't reached")
           ("lru_cap", po::value<int>(&lru_cap)->default_value(lru_cap), "LRU Cache max capacity")
@@ -135,7 +139,8 @@ int main(int argc, char** argv) {
   } else {
     Notifier *notifer = new Notifier(connection_string.c_str(), database_name.c_str(),
             meta_database_name.c_str(), mutations_tu, schamebased_tu, schemaless_tu, provenance_tu,
-            poll_maxTimeToWait, elastic_addr, hopsworks, elastic_index, elastic_provenance_index,
+            poll_maxTimeToWait, elastic_addr, hopsworks, elastic_index, 
+            elastic_file_provenance_index, elastic_app_provenance_index,
             elastic_batch_size, elastic_issue_time,
             lru_cap, recovery, stats, barrier);
     notifer->start();

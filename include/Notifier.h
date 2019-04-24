@@ -32,14 +32,18 @@
 #include "SchemalessMetadataBatcher.h"
 #include "HopsworksOpsLogTailer.h"
 #include "MetadataLogTailer.h"
-#include "ProvenanceBatcher.h"
 #include "ClusterConnectionBase.h"
+#include "FileProvenanceElastic.h"
+#include "FileProvenanceElasticDataReader.h"
+#include "AppProvenanceElastic.h"
+#include "AppProvenanceElasticDataReader.h"
 
 class Notifier : public ClusterConnectionBase {
 public:
   Notifier(const char* connection_string, const char* database_name, const char* meta_database_name,
-          const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, const TableUnitConf provenance_tu,
-          const int poll_maxTimeToWait, const string elastic_addr, const bool hopsworks, const string elastic_index, const string elastic_provenance_index,
+          const TableUnitConf mutations_tu, const TableUnitConf schemabased_tu, const TableUnitConf schemaless_tu, const TableUnitConf elastic_provenance_tu,
+          const int poll_maxTimeToWait, const string elastic_addr, const bool hopsworks, const string elastic_index, 
+          const string elastic_file_provenance_index, const string elastic_app_provenance_index,
           const int elastic_batch_size, const int elastic_issue_time, const int lru_cap, const bool recovery, const bool stats,
           Barrier barrier);
   void start();
@@ -50,13 +54,14 @@ private:
   const TableUnitConf mMutationsTU;
   const TableUnitConf mSchemabasedTU;
   const TableUnitConf mSchemalessTU;
-  const TableUnitConf mProvenanceTU;
+  const TableUnitConf mElasticProvenanceTU;
 
   const int mPollMaxTimeToWait;
   const string mElasticAddr;
   const bool mHopsworksEnabled;
   const string mElasticIndex;
-  const string mElasticProvenanceIndex;
+  const string mElasticFileProvenanceIndex;
+  const string mElasticAppProvenanceIndex;
   const int mElasticBatchsize;
   const int mElasticIssueTime;
   const int mLRUCap;
@@ -80,11 +85,15 @@ private:
 
   HopsworksOpsLogTailer* mhopsworksOpsLogTailer;
 
-  ProvenanceTableTailer* mProvenanceTableTailer;
-  ProvenanceDataReaders* mProvenanceDataReaders;
-  ProvenanceBatcher* mProvenanceBatcher;
+  FileProvenanceTableTailer* mFileProvenanceTableTailer;
+  FileProvenanceElasticDataReaders* mFileProvenanceElasticDataReaders;
+  RCBatcher<FileProvenanceRow, SConn, PKeys>* mFileProvenanceBatcher;
+  FileProvenanceElastic* mFileProvenanceElastic;
 
-  ProvenanceElasticSearch* mProvenancElasticSearch;
+  AppProvenanceTableTailer* mAppProvenanceTableTailer;
+  AppProvenanceElasticDataReaders* mAppProvenanceElasticDataReaders;
+  RCBatcher<AppProvenanceRow, SConn, AppPKeys>* mAppProvenanceBatcher;
+  AppProvenanceElastic* mAppProvenanceElastic;
 
   void setup();
 };
