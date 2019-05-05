@@ -26,28 +26,31 @@
 #include "DBTable.h"
 #include "FsMutationsLogTable.h"
 #include "MetadataLogTable.h"
+#include "boost/optional.hpp"
 
+struct XAttrPK {
+  Int64 mInodeId;
+  Int8 mNamespace;
+  string mName;
+
+  XAttrPK(Int64 inodeId, Int8 nameSpace, string name) {
+    mInodeId = inodeId;
+    mNamespace = nameSpace;
+    mName = name;
+  }
+
+  string to_string() {
+    stringstream out;
+    out << mInodeId << "-" << mNamespace << "-" << mName;
+    return out.str();
+  }
+};
 
 struct XAttrRow {
   Int64 mInodeId;
   Int8 mNamespace;
   string mName;
   string mValue;
-
-
-  string to_upsert_json(){
-    stringstream out;
-    out << getDocUpdatePrefix(mInodeId) << endl;
-    out << upsert() << endl;
-    return out.str();
-  }
-
-  static string to_delete_json(FsMutationRow row){
-    stringstream out;
-    out << getDocUpdatePrefix(row.mInodeId) << endl;
-    out << removeXAttrScript(row.getXAttrName()) << endl;
-    return out.str();
-  }
 
   string to_string(){
     stringstream stream;
@@ -59,111 +62,132 @@ struct XAttrRow {
     stream << "-------------------------" << endl;
     return stream.str();
   }
-private:
-
-  string upsert() {
-    rapidjson::Document doc;
-    doc.Parse(getXAttrDoc(true).c_str());
-    rapidjson::Document xattr(&doc.GetAllocator());
-    if (!xattr.Parse(mValue.c_str()).HasParseError()) {
-      mergeDoc(doc, xattr);
-      rapidjson::StringBuffer sbDoc;
-      rapidjson::Writer<rapidjson::StringBuffer> docWriter(sbDoc);
-      doc.Accept(docWriter);
-      return string(sbDoc.GetString());
-    } else {
-      LOG_DEBUG("XAttr is non json " << mName << "=" << mValue);
-      return getXAttrDoc(false);
-    }
-
-  }
-
-  void mergeDoc(rapidjson::Document& target, rapidjson::Document& source) {
-    for (rapidjson::Document::MemberIterator itr = source.MemberBegin(); itr != source.MemberEnd(); ++itr) {
-      target["doc"][XATTR_FIELD_NAME][mName.c_str()].AddMember(itr->name,
-          itr->value, target.GetAllocator());
-    }
-  }
-
-  static string getDocUpdatePrefix(Int64 inodeId){
-    rapidjson::StringBuffer sbOp;
-    rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
-
-    opWriter.StartObject();
-
-    opWriter.String("update");
-    opWriter.StartObject();
-
-    opWriter.String("_id");
-    opWriter.Int64(inodeId);
-
-    opWriter.EndObject();
-    opWriter.EndObject();
-
-    return string(sbOp.GetString());
-  }
-
-  static string removeXAttrScript(string xattrname){
-
-    rapidjson::StringBuffer sbOp;
-    rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
-
-    opWriter.StartObject();
-
-    opWriter.String("script");
-
-    stringstream rmout;
-    rmout << "ctx._source." << XATTR_FIELD_NAME << ".remove(\"" << xattrname <<  "\")";
-    opWriter.String(rmout.str().c_str());
-
-    opWriter.EndObject();
-
-    return string(sbOp.GetString());
-
-  }
-
-  string getXAttrDoc(bool isJSONVal){
-
-    rapidjson::StringBuffer sbOp;
-    rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
-
-    opWriter.StartObject();
-
-    opWriter.String("doc");
-    opWriter.StartObject();
-
-    opWriter.String(XATTR_FIELD_NAME);
-    opWriter.StartObject();
-
-    opWriter.String(mName.c_str());
-    if(isJSONVal) {
-      opWriter.StartObject();
-      opWriter.EndObject();
-    }else{
-      opWriter.String(mValue.c_str());
-    }
-    opWriter.EndObject();
-
-
-    opWriter.EndObject();
-    opWriter.String("doc_as_upsert");
-    opWriter.Bool(true);
-
-    opWriter.EndObject();
-
-    return string(sbOp.GetString());
-  }
-
 };
 
 typedef vector<XAttrRow> XAttrVec;
 typedef boost::unordered_map<string, XAttrVec> XAttrMap;
 
+class FsMutationsHelper {
+  public:
+    static string to_upsert_json(XAttrRow row){
+      stringstream out;
+      out << getDocUpdatePrefix(row.mInodeId) << endl;
+      out << upsert(row) << endl;
+      return out.str();
+    }
+
+    static string to_delete_json(Int64 inodeId, string name){
+      stringstream out;
+      out << getDocUpdatePrefix(inodeId) << endl;
+      out << removeXAttrScript(name) << endl;
+      return out.str();
+    }
+  private:
+    static string upsert(XAttrRow row) {
+      rapidjson::Document doc;
+      doc.Parse(getXAttrDoc(row, true).c_str());
+      rapidjson::Document xattr(&doc.GetAllocator());
+      if (!xattr.Parse(row.mValue.c_str()).HasParseError()) {
+        mergeDoc(row.mName, doc, xattr);
+        rapidjson::StringBuffer sbDoc;
+        rapidjson::Writer<rapidjson::StringBuffer> docWriter(sbDoc);
+        doc.Accept(docWriter);
+        return string(sbDoc.GetString());
+      } else {
+        LOG_DEBUG("XAttr is non json " << row.mName << "=" << row.mValue);
+        return getXAttrDoc(row, false);
+      }
+    }
+
+    static void mergeDoc(string attrName, rapidjson::Document& target, rapidjson::Document& source) {
+      for (rapidjson::Document::MemberIterator itr = source.MemberBegin(); itr != source.MemberEnd(); ++itr) {
+        target["doc"][XATTR_FIELD_NAME][attrName.c_str()].AddMember(itr->name,
+            itr->value, target.GetAllocator());
+      }
+    }
+
+    static string removeXAttrScript(string xattrname){
+
+      rapidjson::StringBuffer sbOp;
+      rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
+
+      opWriter.StartObject();
+
+      opWriter.String("script");
+
+      stringstream rmout;
+      rmout << "ctx._source." << XATTR_FIELD_NAME << ".remove(\"" << xattrname <<  "\")";
+      opWriter.String(rmout.str().c_str());
+
+      opWriter.EndObject();
+
+      return string(sbOp.GetString());
+
+    }
+
+    static string getXAttrDoc(XAttrRow row, bool isJSONVal){
+
+      rapidjson::StringBuffer sbOp;
+      rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
+
+      opWriter.StartObject();
+
+      opWriter.String("doc");
+      opWriter.StartObject();
+
+      opWriter.String(XATTR_FIELD_NAME);
+      opWriter.StartObject();
+
+      opWriter.String(row.mName.c_str());
+      if(isJSONVal) {
+        opWriter.StartObject();
+        opWriter.EndObject();
+      }else{
+        opWriter.String(row.mValue.c_str());
+      }
+      opWriter.EndObject();
+
+
+      opWriter.EndObject();
+      opWriter.String("doc_as_upsert");
+      opWriter.Bool(true);
+
+      opWriter.EndObject();
+
+      return string(sbOp.GetString());
+    }
+
+    static string getDocUpdatePrefix(Int64 inodeId){
+      rapidjson::StringBuffer sbOp;
+      rapidjson::Writer<rapidjson::StringBuffer> opWriter(sbOp);
+
+      opWriter.StartObject();
+
+      opWriter.String("update");
+      opWriter.StartObject();
+
+      opWriter.String("_id");
+      opWriter.Int64(inodeId);
+
+      opWriter.EndObject();
+      opWriter.EndObject();
+
+      return string(sbOp.GetString());
+    }
+};
+
 class XAttrTable : public DBTable<XAttrRow> {
 
+protected:
+  XAttrTable(string table_name) : DBTable(table_name){
+    addColumn("inode_id");
+    addColumn("namespace");
+    addColumn("name");
+    addColumn("value");
+  }
 public:
 
-  XAttrTable() : DBTable("hdfs_xattrs"){
+  XAttrTable() : DBTable("hdfs_xattrs") {
     addColumn("inode_id");
     addColumn("namespace");
     addColumn("name");
@@ -185,6 +209,15 @@ public:
     a[1] = ns;
     a[2] = name;
     return DBTable<XAttrRow>::doRead(connection, a);
+  }
+
+  boost::optional<XAttrRow> get(Ndb* connection, XAttrPK key) {
+    XAttrRow row = get(connection, key.mInodeId, key.mNamespace, key.mName);
+    if(readCheckExists(key, row)) {
+      return row;
+    } else {
+      return boost::none;
+    }
   }
 
   XAttrMap get(Ndb* connection, Fmq* data_batch) {
@@ -242,5 +275,9 @@ public:
     return doRead(connection, PRIMARY_INDEX, args);
   }
 
+private:
+  static bool readCheckExists(XAttrPK key, XAttrRow row) {
+    return key.mInodeId == row.mInodeId && key.mNamespace == row.mNamespace && key.mName == row.mName;
+  }
 };
 #endif //EPIPE_XATTRTABLE_H

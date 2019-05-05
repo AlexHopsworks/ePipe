@@ -182,7 +182,7 @@ void Reindexer::run() {
     for(XAttrVec::iterator xit = xattrs.begin(); xit != xattrs.end(); ++xit){
       XAttrRow xAttrRow = *xit;
       if(xAttrRow.mInodeId == inodeId){
-        bulk.mJSON += xAttrRow.to_upsert_json();
+        bulk.mJSON += FsMutationsHelper::to_upsert_json(xAttrRow);
       }else{
         LOG_WARN("XAttrs doesn't exists for ["
                      << inodeId << "] - " << xAttrRow.to_string());
