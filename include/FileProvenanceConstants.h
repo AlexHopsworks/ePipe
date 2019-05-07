@@ -24,9 +24,19 @@
 #define FILEPROVENANCECONSTANTS_H
 
 namespace FileProvenanceConstants {
-  const string FILE_PROV_XATTRS_FEATURES = "features";
-  const string FILE_PROV_XATTRS_TRAINING_DATASETS = "training_datasets";
-  const Int8 FILE_PROV_XATTRS_USER_NAMESPACE = 0;
+  const string XATTRS_ML_ID = "ml_id";
+  const string XATTRS_FEATURES = "features";
+  const string XATTRS_TRAINING_DATASETS = "training_datasets";
+  const Int8 XATTRS_USER_NAMESPACE = 0;
+  const string ML_MODEL_DATASET = "Models";
+  
+  const string ML_TYPE_NONE = "none";
+  const string ML_TYPE_ERR = "err";
+  const string ML_TYPE_MODEL = "model";
+
+  const string ML_ID_SPACE = "space_id";
+  const string ML_ID_BASE = "id";
+  const string ML_ID_VERSION = "version";
 }
 
 #endif /* FILEPROVENANCECONSTANTS_H */

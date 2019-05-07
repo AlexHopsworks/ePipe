@@ -26,40 +26,39 @@
 
 #include "NdbDataReaders.h"
 #include "FileProvenanceTableTailer.h"
-#include "boost/optional.hpp"
 #include "boost/date_time.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "rapidjson/document.h"
 #include "tables/XAttrTable.h"
+#include "tables/INodeTable.h"
 #include "FileProvenanceConstants.h"
-
-static const string XATTRS_FEATURES = FileProvenanceConstants::FILE_PROV_XATTRS_FEATURES;
-static const string XATTRS_TRAINING_DATASETS = FileProvenanceConstants::FILE_PROV_XATTRS_TRAINING_DATASETS;
-static const Int8 XATTRS_USER_NAMESPACE = FileProvenanceConstants::FILE_PROV_XATTRS_USER_NAMESPACE;
 
 class FileProvenanceElasticDataReader : public NdbDataReader<FileProvenanceRow, SConn, PKeys> {
 public:
-  FileProvenanceElasticDataReader(SConn connection, const bool hopsworks);
+  FileProvenanceElasticDataReader(SConn connection, const bool hopsworks, const int lru_cap);
   virtual ~FileProvenanceElasticDataReader();
 private:
   XAttrTable mXAttrTable;
   XAttrTable mXAttrTrashBinTable;
+  INodeTable mInodeTable;
   void processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk);
   boost::optional<XAttrRow> getXAttr(XAttrPK key);
-  boost::optional<XAttrRow> getFeatures(Int64 inodeId);
-  boost::optional<XAttrRow> getTrainingDatasets(Int64 inodeId);
+  boost::tuple<string, string, string> processModelComp(FileProvenanceRow row);
+  string mlModelId(XAttrRow mlIdXAttr);
+  boost::optional<Int64> mlModelInodeId(FileProvenanceRow row);
   string process_row(FileProvenanceRow row);
-  string bulk_add_json(FileProvenanceRow row);
+  string bulk_add_json(FileProvenanceRow row, string mlType, string mlId, string mlDeps);
   string readable_timestamp(Int64 timestamp);
 };
 
 class FileProvenanceElasticDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, PKeys>{
   public:
     FileProvenanceElasticDataReaders(SConn* connections, int num_readers,const bool hopsworks,
-          TimedRestBatcher<PKeys>* restEndpoint) : 
+          TimedRestBatcher<PKeys>* restEndpoint, const int lru_cap) : 
     NdbDataReaders(restEndpoint){
       for(int i=0; i<num_readers; i++){
         FileProvenanceElasticDataReader* dr 
-        = new FileProvenanceElasticDataReader(connections[i], hopsworks);
+        = new FileProvenanceElasticDataReader(connections[i], hopsworks, lru_cap);
         dr->start(i, this);
         mDataReaders.push_back(dr);
       }

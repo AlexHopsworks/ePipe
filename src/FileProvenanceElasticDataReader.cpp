@@ -23,8 +23,8 @@
 
 #include "FileProvenanceElasticDataReader.h"
 
-FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connection, const bool hopsworks)
-: NdbDataReader(connection, hopsworks) {
+FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connection, const bool hopsworks, const int lru_cap)
+: NdbDataReader(connection, hopsworks), mInodeTable(lru_cap) {
 }
 
 void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk) {
@@ -58,29 +58,74 @@ boost::optional<XAttrRow> FileProvenanceElasticDataReader::getXAttr(XAttrPK key)
   return row;
 }
 
-boost::optional<XAttrRow> FileProvenanceElasticDataReader::getFeatures(Int64 inodeId) {
-  XAttrPK key = XAttrPK(inodeId, XATTRS_USER_NAMESPACE, XATTRS_FEATURES);
-  return getXAttr(key);
-}
-
-boost::optional<XAttrRow> FileProvenanceElasticDataReader::getTrainingDatasets(Int64 inodeId) {
-  XAttrPK key = XAttrPK(inodeId, XATTRS_USER_NAMESPACE, XATTRS_TRAINING_DATASETS);
-  return getXAttr(key);
-}
-
 string FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
   LOG_INFO("reading features inode:" << row.mInodeId);
-  boost::optional<XAttrRow> features = getFeatures(row.mInodeId);
-  if(features) {
-    LOG_INFO("has features");
-  } else {
-    LOG_INFO("no features");
-  }
   
-  return bulk_add_json(row);
+  if(row.mDatasetName == FileProvenanceConstants::ML_MODEL_DATASET) {
+    boost::tuple<string, string, string> model = processModelComp(row);
+    return bulk_add_json(row, boost::get<0>(model), boost::get<1>(model), boost::get<2>(model));
+  } else {
+    return bulk_add_json(row, FileProvenanceConstants::ML_TYPE_NONE, "", "");
+  }
 }
 
-string FileProvenanceElasticDataReader::bulk_add_json(FileProvenanceRow row) {
+boost::tuple<string, string, string> FileProvenanceElasticDataReader::processModelComp(
+  FileProvenanceRow row) {
+
+  if(row.mDatasetId == row.mInodeId || row.mDatasetId == row.mParentId) {
+    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_NONE, "", "");
+  }
+  boost::optional<Int64> modelInodeId = mlModelInodeId(row);
+  if(!modelInodeId) {
+    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
+  }
+  boost::optional<XAttrRow> mlIdXAttr = getXAttr(XAttrPK(modelInodeId.get(), 
+    FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_ML_ID));
+  if(!mlIdXAttr) {
+    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
+  }
+  boost::optional<XAttrRow> mlDepsXAttr = getXAttr(XAttrPK(modelInodeId.get(), 
+    FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_TRAINING_DATASETS));
+  if(!mlDepsXAttr) {
+    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
+  }
+  string ml_type = FileProvenanceConstants::ML_TYPE_MODEL;
+  string ml_id = mlModelId(mlIdXAttr.get());
+  string ml_deps = mlDepsXAttr.get().mValue;
+  return boost::make_tuple(ml_type, ml_id, ml_deps);
+}
+
+string FileProvenanceElasticDataReader::mlModelId(XAttrRow mlIdXAttr) {
+  rapidjson::Document d;
+  d.Parse(mlIdXAttr.mValue.c_str());
+  rapidjson::Value& spaceId = d[FileProvenanceConstants::ML_ID_SPACE.c_str()];
+  rapidjson::Value& base = d[FileProvenanceConstants::ML_ID_BASE.c_str()];
+  rapidjson::Value& version = d[FileProvenanceConstants::ML_ID_VERSION.c_str()];
+  stringstream ml_id;
+  ml_id << spaceId.GetString() << "_" << base.GetString() << "_" << version.GetString();
+  return ml_id.str();
+}
+
+boost::optional<Int64> FileProvenanceElasticDataReader::mlModelInodeId(FileProvenanceRow row) {
+  Int64 parentIId = row.mParentId;
+  Int64 modelIId = row.mInodeId; 
+  do {
+    INodeRow parent = mInodeTable.getByInodeId(mNdbConnection, parentIId);
+    if(parent.mId != parentIId) {
+      return boost::none;
+    }
+    if(parent.mParentId == row.mDatasetId) {
+      return modelIId;
+    }
+    modelIId = parentIId;
+    parentIId = parent.mParentId;
+  } while(true);
+}
+
+
+string FileProvenanceElasticDataReader::bulk_add_json(FileProvenanceRow row, 
+  string mlType, string mlId, string mlDeps) {
+  
   rapidjson::Document op;
   op.SetObject();
   rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -96,20 +141,19 @@ string FileProvenanceElasticDataReader::bulk_add_json(FileProvenanceRow row) {
 
   rapidjson::Value dataVal(rapidjson::kObjectType);
 
-  dataVal.AddMember("inode_id",             rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
-  dataVal.AddMember("inode_operation",      rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("io_logical_time",      rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
-  dataVal.AddMember("io_timestamp",         rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
-  dataVal.AddMember("io_app_id",            rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("user_id",              rapidjson::Value().SetInt(row.mUserId), dataAlloc);
-  dataVal.AddMember("project_i_id",         rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
-  dataVal.AddMember("dataset_i_id",         rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
-  dataVal.AddMember("i_name",               rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("i_readable_t",         rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("ml_type",              rapidjson::Value().SetString("none", dataAlloc), dataAlloc);
-  dataVal.AddMember("ml_id",                rapidjson::Value().SetInt64(0l), dataAlloc);
-  dataVal.AddMember("ml_parent",            rapidjson::Value().SetInt64(0l), dataAlloc);
-  dataVal.AddMember("ml_deps",              rapidjson::Value().SetInt64(0l), dataAlloc);
+  dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
+  dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
+  dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
+  dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("user_id",          rapidjson::Value().SetInt(row.mUserId), dataAlloc);
+  dataVal.AddMember("project_i_id",     rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
+  dataVal.AddMember("dataset_i_id",     rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
+  dataVal.AddMember("i_name",           rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("ml_id",            rapidjson::Value().SetString(mlId.c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("ml_deps",          rapidjson::Value().SetString(mlDeps.c_str(), dataAlloc), dataAlloc);
     
   data.AddMember("doc", dataVal, dataAlloc);
   data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
