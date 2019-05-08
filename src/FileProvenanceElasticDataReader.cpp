@@ -71,27 +71,25 @@ string FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
 
 boost::tuple<string, string, string> FileProvenanceElasticDataReader::processModelComp(
   FileProvenanceRow row) {
-
-  if(row.mDatasetId == row.mInodeId || row.mDatasetId == row.mParentId) {
+  //the model(versioned) is the second directory within the "Models" dataset
+  if(!row.mDatasetId == row.mP2Id) {
     return boost::make_tuple(FileProvenanceConstants::ML_TYPE_NONE, "", "");
   }
-  boost::optional<Int64> modelInodeId = mlModelInodeId(row);
-  if(!modelInodeId) {
-    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
-  }
-  boost::optional<XAttrRow> mlIdXAttr = getXAttr(XAttrPK(modelInodeId.get(), 
+  boost::optional<XAttrRow> mlIdXAttr = getXAttr(XAttrPK(row.mInodeId, 
     FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_ML_ID));
   if(!mlIdXAttr) {
     return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
   }
-  boost::optional<XAttrRow> mlDepsXAttr = getXAttr(XAttrPK(modelInodeId.get(), 
+  string ml_deps = "";
+  boost::optional<XAttrRow> mlDepsXAttr = getXAttr(XAttrPK(row.mInodeId, 
     FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_TRAINING_DATASETS));
   if(!mlDepsXAttr) {
-    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
+    //return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
+  } else {
+    ml_deps = mlDepsXAttr.get().mValue;
   }
   string ml_type = FileProvenanceConstants::ML_TYPE_MODEL;
   string ml_id = mlModelId(mlIdXAttr.get());
-  string ml_deps = mlDepsXAttr.get().mValue;
   return boost::make_tuple(ml_type, ml_id, ml_deps);
 }
 
@@ -105,23 +103,6 @@ string FileProvenanceElasticDataReader::mlModelId(XAttrRow mlIdXAttr) {
   ml_id << spaceId.GetString() << "_" << base.GetString() << "_" << version.GetString();
   return ml_id.str();
 }
-
-boost::optional<Int64> FileProvenanceElasticDataReader::mlModelInodeId(FileProvenanceRow row) {
-  Int64 parentIId = row.mParentId;
-  Int64 modelIId = row.mInodeId; 
-  do {
-    INodeRow parent = mInodeTable.getByInodeId(mNdbConnection, parentIId);
-    if(parent.mId != parentIId) {
-      return boost::none;
-    }
-    if(parent.mParentId == row.mDatasetId) {
-      return modelIId;
-    }
-    modelIId = parentIId;
-    parentIId = parent.mParentId;
-  } while(true);
-}
-
 
 string FileProvenanceElasticDataReader::bulk_add_json(FileProvenanceRow row, 
   string mlType, string mlId, string mlDeps) {

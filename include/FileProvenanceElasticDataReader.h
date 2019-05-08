@@ -45,7 +45,6 @@ private:
   boost::optional<XAttrRow> getXAttr(XAttrPK key);
   boost::tuple<string, string, string> processModelComp(FileProvenanceRow row);
   string mlModelId(XAttrRow mlIdXAttr);
-  boost::optional<Int64> mlModelInodeId(FileProvenanceRow row);
   string process_row(FileProvenanceRow row);
   string bulk_add_json(FileProvenanceRow row, string mlType, string mlId, string mlDeps);
   string readable_timestamp(Int64 timestamp);

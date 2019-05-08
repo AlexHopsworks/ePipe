@@ -64,15 +64,17 @@ struct FileProvenanceRow {
   string mAppId;
   int mUserId;
   
-  Int64 mParentId;
   Int64 mPartitionId;
-  Int64 mProjectId;
+  Int64 mP1Id;
+  Int64 mP2Id;
+  Int64 mP3Id;
   Int64 mDatasetId;
+  Int64 mProjectId;
   string mInodeName;
+  string mDatasetName;
   int mLogicalTimeBatch;
   Int64 mTimestampBatch;
-  string mDatasetName;
-
+  
   ptime mEventCreationTime;
 
   FileProvenancePK getPK() {
@@ -89,14 +91,16 @@ struct FileProvenanceRow {
     stream << "AppId = " << mAppId << endl;
     stream << "UserId = " << mUserId << endl;
     
-    stream << "ParentId = " << mParentId << endl;
     stream << "PartitionId = " << mPartitionId << endl;
-    stream << "ProjectId = " << mProjectId << endl;
+    stream << "Parent1Id = " << mP1Id << endl;
+    stream << "Parent2Id = " << mP2Id << endl;
+    stream << "Parent3Id = " << mP3Id << endl;
     stream << "DatasetId = " << mDatasetId << endl;
+    stream << "ProjectId = " << mProjectId << endl;
     stream << "InodeName = " << mInodeName << endl;
+    stream << "DatasetName = " << mDatasetName << endl;
     stream << "LogicalTimeBatch = " << mLogicalTimeBatch << endl;
     stream << "TimestampBatch = " << mTimestampBatch << endl;
-    stream << "DatasetName = " << mDatasetName << endl;
     stream << "-------------------------" << endl;
     return stream.str();
   }
@@ -155,14 +159,16 @@ public:
     addColumn("io_timestamp");
     addColumn("io_app_id");
     addColumn("io_user_id");
-    addColumn("i_parent_id");
     addColumn("i_partition_id");
-    addColumn("project_i_id");
+    addColumn("i_p1_id");
+    addColumn("i_p2_id");
+    addColumn("i_p3_id");
     addColumn("dataset_i_id");
+    addColumn("project_i_id");
     addColumn("i_name");
+    addColumn("dataset_name");
     addColumn("io_logical_time_batch");
     addColumn("io_timestamp_batch");
-    addColumn("dataset_name");
 
     addRecoveryIndex("logical_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
@@ -178,14 +184,17 @@ public:
     row.mTimestamp = value[3]->int64_value();
     row.mAppId = get_string(value[4]);
     row.mUserId = value[5]->int32_value();
-    row.mParentId = value[6]->int64_value();
-    row.mPartitionId = value[7]->int64_value();
-    row.mProjectId = value[8]->int64_value();
-    row.mDatasetId = value[9]->int64_value();
-    row.mInodeName = get_string(value[10]);
-    row.mLogicalTimeBatch = value[11]->int32_value();
-    row.mTimestampBatch = value[12]->int64_value();
+    row.mPartitionId = value[6]->int64_value();
+    row.mP1Id = value[7]->int64_value();
+    row.mP2Id = value[8]->int64_value();
+    row.mP3Id = value[9]->int64_value();
+    row.mDatasetId = value[10]->int64_value();
+    row.mProjectId = value[11]->int64_value();
+    row.mInodeName = get_string(value[12]);
     row.mDatasetName = get_string(value[13]);
+    row.mLogicalTimeBatch = value[14]->int32_value();
+    row.mTimestampBatch = value[15]->int64_value();
+    
     LOG_DEBUG("Got file provenance row: ");
     return row;
   }
