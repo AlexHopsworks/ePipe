@@ -29,6 +29,7 @@
 
 #include "ElasticSearchBase.h"
 #include "FileProvenanceTableTailer.h"
+#include "tables/FileProvenanceXAttrBufferTable.h"
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
@@ -39,9 +40,13 @@ namespace bc = boost::accumulators;
 
 typedef bc::accumulator_set<double, bc::stats<bc::tag::mean, bc::tag::min, bc::tag::max> > Accumulator;
 
-typedef Bulk<PKeys> PBulk;
+struct ProvKeys {
+  PKeys mFileProvLogKs;
+  FPXAttrBKeys mXAttrBufferKs;
+};
+typedef Bulk<ProvKeys> PBulk;
 
-class FileProvenanceElastic : public ElasticSearchBase<PKeys> {
+class FileProvenanceElastic : public ElasticSearchBase<ProvKeys> {
 public:
   FileProvenanceElastic(string elastic_addr, string index,
           int time_to_wait_before_inserting, int bulk_size,

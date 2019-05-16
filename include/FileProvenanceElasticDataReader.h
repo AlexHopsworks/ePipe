@@ -30,30 +30,24 @@
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include "rapidjson/document.h"
 #include "tables/XAttrTable.h"
+#include "tables/FileProvenanceXAttrBufferTable.h"
 #include "tables/INodeTable.h"
 #include "FileProvenanceConstants.h"
+#include "FileProvenanceElastic.h"
 
-class FileProvenanceElasticDataReader : public NdbDataReader<FileProvenanceRow, SConn, PKeys> {
+class FileProvenanceElasticDataReader : public NdbDataReader<FileProvenanceRow, SConn, ProvKeys> {
 public:
   FileProvenanceElasticDataReader(SConn connection, const bool hopsworks, const int lru_cap);
   virtual ~FileProvenanceElasticDataReader();
 private:
-  XAttrTable mXAttrTable;
-  XAttrTable mXAttrTrashBinTable;
-  INodeTable mInodeTable;
-  void processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk);
-  boost::optional<XAttrRow> getXAttr(XAttrPK key);
-  boost::tuple<string, string, string> processModelComp(FileProvenanceRow row);
-  string mlModelId(XAttrRow mlIdXAttr);
-  string process_row(FileProvenanceRow row);
-  string bulk_add_json(FileProvenanceRow row, string mlType, string mlId, string mlDeps);
-  string readable_timestamp(Int64 timestamp);
+  void processAddedandDeleted(Pq* data_batch, Bulk<ProvKeys>& bulk);
+  boost::tuple<string, boost::optional<XAttrPK> > process_row(FileProvenanceRow row);
 };
 
-class FileProvenanceElasticDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, PKeys>{
+class FileProvenanceElasticDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, ProvKeys>{
   public:
     FileProvenanceElasticDataReaders(SConn* connections, int num_readers,const bool hopsworks,
-          TimedRestBatcher<PKeys>* restEndpoint, const int lru_cap) : 
+          TimedRestBatcher<ProvKeys>* restEndpoint, const int lru_cap) : 
     NdbDataReaders(restEndpoint){
       for(int i=0; i<num_readers; i++){
         FileProvenanceElasticDataReader* dr 

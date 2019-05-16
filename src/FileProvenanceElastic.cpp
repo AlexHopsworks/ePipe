@@ -41,18 +41,23 @@ mTotalNumOfBulksProcessed(0), mIsFirstEventArrived(false) {
 }
 
 void FileProvenanceElastic::process(vector<PBulk>* bulks) {
-  PKeys keys;
+  PKeys fileProvLogKeys;
+  FPXAttrBKeys xAttrBufferKeys;
   string batch;
   for (vector<PBulk>::iterator it = bulks->begin(); it != bulks->end(); ++it) {
     PBulk bulk = *it;
     batch.append(bulk.mJSON);
-    keys.insert(keys.end(), bulk.mPKs.begin(), bulk.mPKs.end());
+    fileProvLogKeys.insert(fileProvLogKeys.end(), bulk.mPKs.mFileProvLogKs.begin(), bulk.mPKs.mFileProvLogKs.end());
+    xAttrBufferKeys.insert(xAttrBufferKeys.end(), bulk.mPKs.mXAttrBufferKs.begin(), bulk.mPKs.mXAttrBufferKs.end());
   }
 
   //TODO: handle failures
   if (httpRequest(HTTP_POST, mElasticBulkAddr, batch)) {
-    if (!keys.empty()) {
-      FileProvenanceLogTable().removeLogs(sConn, keys);
+    if (!fileProvLogKeys.empty()) {
+      FileProvenanceLogTable().removeLogs(sConn, fileProvLogKeys);
+    }
+    if (!xAttrBufferKeys.empty()) {
+      FileProvenanceXAttrBufferTable().cleanBuffer(sConn, xAttrBufferKeys);
     }
   }
 

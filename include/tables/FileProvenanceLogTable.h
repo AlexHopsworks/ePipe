@@ -72,6 +72,8 @@ struct FileProvenanceRow {
   Int64 mProjectId;
   string mInodeName;
   string mDatasetName;
+  string mProjectName;
+  string mXAttrName;
   int mLogicalTimeBatch;
   Int64 mTimestampBatch;
   
@@ -99,6 +101,8 @@ struct FileProvenanceRow {
     stream << "ProjectId = " << mProjectId << endl;
     stream << "InodeName = " << mInodeName << endl;
     stream << "DatasetName = " << mDatasetName << endl;
+    stream << "ProjectName = " << mProjectName << endl;
+    stream << "XAttrName = " << mXAttrName << endl;
     stream << "LogicalTimeBatch = " << mLogicalTimeBatch << endl;
     stream << "TimestampBatch = " << mTimestampBatch << endl;
     stream << "-------------------------" << endl;
@@ -167,6 +171,8 @@ public:
     addColumn("project_i_id");
     addColumn("i_name");
     addColumn("dataset_name");
+    addColumn("project_name");
+    addColumn("i_xattr_name");
     addColumn("io_logical_time_batch");
     addColumn("io_timestamp_batch");
 
@@ -192,8 +198,10 @@ public:
     row.mProjectId = value[11]->int64_value();
     row.mInodeName = get_string(value[12]);
     row.mDatasetName = get_string(value[13]);
-    row.mLogicalTimeBatch = value[14]->int32_value();
-    row.mTimestampBatch = value[15]->int64_value();
+    row.mProjectName = get_string(value[14]);
+    row.mXAttrName = get_string(value[15]);
+    row.mLogicalTimeBatch = value[16]->int32_value();
+    row.mTimestampBatch = value[17]->int64_value();
     
     LOG_DEBUG("Got file provenance row: ");
     return row;

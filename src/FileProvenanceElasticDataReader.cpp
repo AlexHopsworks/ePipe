@@ -24,147 +24,212 @@
 #include "FileProvenanceElasticDataReader.h"
 
 FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connection, const bool hopsworks, const int lru_cap)
-: NdbDataReader(connection, hopsworks), mInodeTable(lru_cap) {
+: NdbDataReader(connection, hopsworks) {
 }
 
-void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bulk<PKeys>& bulk) {
+class ElasticHelper {
+public:
+
+  static string add(FileProvenanceRow row) {
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
+
+    rapidjson::Value opVal(rapidjson::kObjectType);
+    opVal.AddMember("_id", rapidjson::Value().SetString(row.getPK().to_string().c_str(), opAlloc), opAlloc);
+
+    op.AddMember("update", opVal, opAlloc);
+
+    rapidjson::Document data;
+    data.SetObject();
+    rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
+
+    rapidjson::Value dataVal(rapidjson::kObjectType);
+
+    string mlType;
+    if(FileProvenanceConstants::isMLModel(row)) {
+      mlType = FileProvenanceConstants::ML_TYPE_MODEL;
+    } else if(FileProvenanceConstants::isMLFeature(row)) {
+      mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
+    } else if(FileProvenanceConstants::isMLTDataset(row)) {
+      mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
+    } else {
+      mlType = FileProvenanceConstants::ML_TYPE_NONE;
+    }
+
+    dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
+    dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
+    dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
+    dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("user_id",          rapidjson::Value().SetInt(row.mUserId), dataAlloc);
+    dataVal.AddMember("project_i_id",     rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
+    dataVal.AddMember("dataset_i_id",     rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
+    dataVal.AddMember("i_name",           rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
+     
+    data.AddMember("doc", dataVal, dataAlloc);
+    data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
+
+    rapidjson::StringBuffer opBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
+    op.Accept(opWriter);
+
+    rapidjson::StringBuffer dataBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
+    data.Accept(dataWriter);
+    
+    stringstream out;
+    out << opBuffer.GetString() << endl << dataBuffer.GetString();
+    return out.str();
+  }
+
+  static string update(string key, string name, string val) {
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
+
+    rapidjson::Value opVal(rapidjson::kObjectType);
+    opVal.AddMember("_id", rapidjson::Value().SetString(key.c_str(), opAlloc), opAlloc);
+
+    op.AddMember("update", opVal, opAlloc);
+
+    rapidjson::Document data;
+    data.SetObject();
+    rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
+
+    rapidjson::Value dataVal(rapidjson::kObjectType);
+
+    rapidjson::Value rname(name.c_str(), dataAlloc);
+    rapidjson::Value rval(val.c_str(), dataAlloc);
+    dataVal.AddMember(rname, rval, dataAlloc);
+      
+    data.AddMember("doc", dataVal, dataAlloc);
+    data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
+
+    rapidjson::StringBuffer opBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
+    op.Accept(opWriter);
+
+    rapidjson::StringBuffer dataBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
+    data.Accept(dataWriter);
+    
+    stringstream out;
+    out << opBuffer.GetString() << endl << dataBuffer.GetString();
+    return out.str();
+  }
+
+  static string readable_timestamp(Int64 timestamp) {
+    using namespace boost::posix_time;
+    using namespace boost::gregorian;
+    time_t raw_t = (time_t)timestamp/1000; //time_t is time in seconds?
+    ptime p_timestamp = from_time_t(raw_t);
+    stringstream t_date;
+    t_date << p_timestamp.date().year() << "." << p_timestamp.date().month() << "." << p_timestamp.date().day();
+    stringstream t_time;
+    t_time << p_timestamp.time_of_day().hours() << ":" << p_timestamp.time_of_day().minutes() << ":" << p_timestamp.time_of_day().seconds();
+    stringstream readable_timestamp;
+    readable_timestamp << t_date.str().c_str() << " " << t_time.str().c_str();
+    return readable_timestamp.str();
+  }
+
+};
+
+class XAttrBufferReader {
+public:
+  XAttrBufferReader(SConn conn) : mConn(conn) {
+  }
+
+  boost::optional<XAttrRow> getXAttr(XAttrPK key) {
+    boost::optional<XAttrRow> row = mXAttr.get(mConn, key);
+    if(row) {
+      LOG_INFO("retrieved xattr:" << key.mName);
+    } else {
+      return  boost::none;
+    }
+    return row;
+  }
+
+  string getMLId(FileProvenanceRow row) {
+    boost::optional<XAttrRow> mlIdXAttr = getXAttr(XAttrPK(row.mInodeId, 
+      FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_ML_ID));
+    string ml_id;
+    if(mlIdXAttr) {
+      ml_id = parseMLId(mlIdXAttr.get());
+    } else {
+      ml_id = "no_such_xattr";
+    } 
+    return ml_id;
+  }
+
+  string parseMLId(XAttrRow mlIdXAttr) {
+    rapidjson::Document d;
+    d.Parse(mlIdXAttr.mValue.c_str());
+    rapidjson::Value& spaceId = d[FileProvenanceConstants::ML_ID_SPACE.c_str()];
+    rapidjson::Value& base = d[FileProvenanceConstants::ML_ID_BASE.c_str()];
+    rapidjson::Value& version = d[FileProvenanceConstants::ML_ID_VERSION.c_str()];
+    stringstream ml_id;
+    ml_id << spaceId.GetString() << "_" << base.GetString() << "_" << version.GetString();
+    return ml_id.str();
+  }
+
+  string getMLDeps(FileProvenanceRow row) {
+    boost::optional<XAttrRow> mlDepsXAttr = getXAttr(XAttrPK(row.mInodeId, 
+      FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::H_XATTR_ML_DEPS));
+    string ml_deps;
+    if(mlDepsXAttr) {
+      ml_deps = mlDepsXAttr.get().mValue;
+    } else {
+      ml_deps = "no_such_xattr";
+    }
+    return ml_deps;
+  }
+  
+private:
+  FileProvenanceXAttrBufferTable mXAttr;
+  SConn mConn;
+};
+
+void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bulk<ProvKeys>& bulk) {
   vector<ptime> arrivalTimes(data_batch->size());
   stringstream out;
   int i = 0;
   for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it, i++) {
     FileProvenanceRow row = *it;
     arrivalTimes[i] = row.mEventCreationTime;
-    FileProvenancePK rowPK = row.getPK();
-    bulk.mPKs.push_back(rowPK);
-    out << process_row(row) << endl;
+    FileProvenancePK fpLogPK = row.getPK();
+    boost::tuple<string, boost::optional<XAttrPK> > result = process_row(row);
+    boost::optional<XAttrPK> fpXAttrBufferPK = boost::get<1>(result);
+    bulk.mPKs.mFileProvLogKs.push_back(fpLogPK);
+    bulk.mPKs.mXAttrBufferKs.push_back(fpXAttrBufferPK);
+    out << boost::get<0>(result) << endl;
   }
-
   bulk.mArrivalTimes = arrivalTimes;
   bulk.mJSON = out.str();
 }
 
-boost::optional<XAttrRow> FileProvenanceElasticDataReader::getXAttr(XAttrPK key) {
-  boost::optional<XAttrRow> row = mXAttrTable.get(mNdbConnection, key);
-  if(row) {
-    LOG_INFO("retrieved " << key.mName << " from hdfs_xattrs");
-  } else {
-    row = mXAttrTrashBinTable.get(mNdbConnection, key);
-    if(row) {
-      LOG_INFO("retrieved " << key.mName << " from hdfs_xattrs trashbin");
+boost::tuple<string, boost::optional<XAttrPK> > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
+    LOG_INFO("reading features inode:" << row.mInodeId);
+    XAttrBufferReader reader(mNdbConnection);
+    if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
+      XAttrPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName);
+      string val;
+      if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_ID) {
+        val = ElasticHelper::update(row.getPK().to_string(), "ml_id", reader.getMLId(row));
+      } else if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_DEPS) {
+        val = ElasticHelper::update(row.getPK().to_string(), "ml_deps", reader.getMLDeps(row));
+      } else {
+        stringstream cause;
+        cause << "xattr not handled: " << row.mXAttrName;
+        throw cause.str();
+      }
+      return boost::make_tuple(val, xattrBufferKey);
     } else {
-      return  boost::none;
+      return boost::make_tuple(ElasticHelper::add(row), boost::none);
     }
   }
-  return row;
-}
-
-string FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
-  LOG_INFO("reading features inode:" << row.mInodeId);
-  
-  if(row.mDatasetName == FileProvenanceConstants::ML_MODEL_DATASET) {
-    boost::tuple<string, string, string> model = processModelComp(row);
-    return bulk_add_json(row, boost::get<0>(model), boost::get<1>(model), boost::get<2>(model));
-  } else {
-    return bulk_add_json(row, FileProvenanceConstants::ML_TYPE_NONE, "", "");
-  }
-}
-
-boost::tuple<string, string, string> FileProvenanceElasticDataReader::processModelComp(
-  FileProvenanceRow row) {
-  //the model(versioned) is the second directory within the "Models" dataset
-  if(!row.mDatasetId == row.mP2Id) {
-    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_NONE, "", "");
-  }
-  boost::optional<XAttrRow> mlIdXAttr = getXAttr(XAttrPK(row.mInodeId, 
-    FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_ML_ID));
-  if(!mlIdXAttr) {
-    return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
-  }
-  string ml_deps = "";
-  boost::optional<XAttrRow> mlDepsXAttr = getXAttr(XAttrPK(row.mInodeId, 
-    FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTRS_TRAINING_DATASETS));
-  if(!mlDepsXAttr) {
-    //return boost::make_tuple(FileProvenanceConstants::ML_TYPE_ERR, "", "");
-  } else {
-    ml_deps = mlDepsXAttr.get().mValue;
-  }
-  string ml_type = FileProvenanceConstants::ML_TYPE_MODEL;
-  string ml_id = mlModelId(mlIdXAttr.get());
-  return boost::make_tuple(ml_type, ml_id, ml_deps);
-}
-
-string FileProvenanceElasticDataReader::mlModelId(XAttrRow mlIdXAttr) {
-  rapidjson::Document d;
-  d.Parse(mlIdXAttr.mValue.c_str());
-  rapidjson::Value& spaceId = d[FileProvenanceConstants::ML_ID_SPACE.c_str()];
-  rapidjson::Value& base = d[FileProvenanceConstants::ML_ID_BASE.c_str()];
-  rapidjson::Value& version = d[FileProvenanceConstants::ML_ID_VERSION.c_str()];
-  stringstream ml_id;
-  ml_id << spaceId.GetString() << "_" << base.GetString() << "_" << version.GetString();
-  return ml_id.str();
-}
-
-string FileProvenanceElasticDataReader::bulk_add_json(FileProvenanceRow row, 
-  string mlType, string mlId, string mlDeps) {
-  
-  rapidjson::Document op;
-  op.SetObject();
-  rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
-
-  rapidjson::Value opVal(rapidjson::kObjectType);
-  opVal.AddMember("_id", rapidjson::Value().SetString(row.getPK().to_string().c_str(), opAlloc), opAlloc);
-
-  op.AddMember("update", opVal, opAlloc);
-
-  rapidjson::Document data;
-  data.SetObject();
-  rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
-
-  rapidjson::Value dataVal(rapidjson::kObjectType);
-
-  dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
-  dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
-  dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
-  dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("user_id",          rapidjson::Value().SetInt(row.mUserId), dataAlloc);
-  dataVal.AddMember("project_i_id",     rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
-  dataVal.AddMember("dataset_i_id",     rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
-  dataVal.AddMember("i_name",           rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("ml_id",            rapidjson::Value().SetString(mlId.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("ml_deps",          rapidjson::Value().SetString(mlDeps.c_str(), dataAlloc), dataAlloc);
-    
-  data.AddMember("doc", dataVal, dataAlloc);
-  data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
-
-  rapidjson::StringBuffer opBuffer;
-  rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
-  op.Accept(opWriter);
-
-  rapidjson::StringBuffer dataBuffer;
-  rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
-  data.Accept(dataWriter);
-  
-  stringstream out;
-  out << opBuffer.GetString() << endl << dataBuffer.GetString();
-  return out.str();
-}
-
-string FileProvenanceElasticDataReader::readable_timestamp(Int64 timestamp) {
-  using namespace boost::posix_time;
-  using namespace boost::gregorian;
-  time_t raw_t = (time_t)timestamp/1000; //time_t is time in seconds?
-  ptime p_timestamp = from_time_t(raw_t);
-  stringstream t_date;
-  t_date << p_timestamp.date().year() << "." << p_timestamp.date().month() << "." << p_timestamp.date().day();
-  stringstream t_time;
-  t_time << p_timestamp.time_of_day().hours() << ":" << p_timestamp.time_of_day().minutes() << ":" << p_timestamp.time_of_day().seconds();
-  stringstream readable_timestamp;
-  readable_timestamp << t_date.str().c_str() << " " << t_time.str().c_str();
-  return readable_timestamp.str();
-}
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {
   

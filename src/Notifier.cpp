@@ -202,7 +202,7 @@ void Notifier::setup() {
     }
     mFileProvenanceElasticDataReaders = new FileProvenanceElasticDataReaders(elastic_file_provenance_connections, 
       mElasticProvenanceTU.mNumReaders, mHopsworksEnabled, mFileProvenanceElastic, mLRUCap);
-    mFileProvenanceBatcher = new RCBatcher<FileProvenanceRow, SConn, PKeys>(
+    mFileProvenanceBatcher = new RCBatcher<FileProvenanceRow, SConn, ProvKeys>(
       mFileProvenanceTableTailer, mFileProvenanceElasticDataReaders,
       mElasticProvenanceTU.mWaitTime, mElasticProvenanceTU.mBatchSize);
     //app

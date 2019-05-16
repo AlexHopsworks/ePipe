@@ -87,7 +87,7 @@ private:
 
   FileProvenanceTableTailer* mFileProvenanceTableTailer;
   FileProvenanceElasticDataReaders* mFileProvenanceElasticDataReaders;
-  RCBatcher<FileProvenanceRow, SConn, PKeys>* mFileProvenanceBatcher;
+  RCBatcher<FileProvenanceRow, SConn, ProvKeys>* mFileProvenanceBatcher;
   FileProvenanceElastic* mFileProvenanceElastic;
 
   AppProvenanceTableTailer* mAppProvenanceTableTailer;
