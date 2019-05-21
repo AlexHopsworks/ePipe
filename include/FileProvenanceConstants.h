@@ -53,19 +53,19 @@ namespace FileProvenanceConstants {
   inline bool isMLModel(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << "Models";
-    return row.mDatasetId == row.mP2Id && row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == row.mP2Name && row.mDatasetName == mlDataset.str();
   }
 
   inline bool isMLFeature(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_featurestore.db" ;
-    return row.mDatasetId == row.mP1Id && row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == row.mP1Name && row.mDatasetName == mlDataset.str();
   }
 
   inline bool isMLTDataset(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_Training_Datasets" ;
-    return row.mDatasetId == row.mP1Id && row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == row.mP1Name && row.mDatasetName == mlDataset.str();
   }
 }
 
