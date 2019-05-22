@@ -30,7 +30,7 @@ FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connectio
 class ElasticHelper {
 public:
 
-  static string add(FileProvenanceRow row) {
+  static string add(FileProvenanceRow row, string mlId, string mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -46,17 +46,6 @@ public:
 
     rapidjson::Value dataVal(rapidjson::kObjectType);
 
-    string mlType;
-    if(FileProvenanceConstants::isMLModel(row)) {
-      mlType = FileProvenanceConstants::ML_TYPE_MODEL;
-    } else if(FileProvenanceConstants::isMLFeature(row)) {
-      mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
-    } else if(FileProvenanceConstants::isMLTDataset(row)) {
-      mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
-    } else {
-      mlType = FileProvenanceConstants::ML_TYPE_NONE;
-    }
-
     dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
     dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
@@ -67,6 +56,7 @@ public:
     dataVal.AddMember("dataset_i_id",     rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
     dataVal.AddMember("i_name",           rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("ml_id",            rapidjson::Value().SetString(mlId.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
      
     data.AddMember("doc", dataVal, dataAlloc);
@@ -211,9 +201,9 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bul
 }
 
 boost::tuple<string, boost::optional<XAttrPK> > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
-    LOG_INFO("reading features inode:" << row.mInodeId);
-    XAttrBufferReader reader(mNdbConnection);
+    LOG_INFO("reading provenance for inode:" << row.mInodeId);
     if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
+      XAttrBufferReader reader(mNdbConnection);
       XAttrPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName);
       string val;
       if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_ID) {
@@ -227,7 +217,28 @@ boost::tuple<string, boost::optional<XAttrPK> > FileProvenanceElasticDataReader:
       }
       return boost::make_tuple(val, xattrBufferKey);
     } else {
-      return boost::make_tuple(ElasticHelper::add(row), boost::none);
+      string mlType = FileProvenanceConstants::ML_TYPE_NONE;
+      string mlId = "";
+      if(FileProvenanceConstants::isMLModel(row)) {
+        mlType = FileProvenanceConstants::ML_TYPE_MODEL;
+        mlId = FileProvenanceConstants::getMLModelId(row);
+      } else if(FileProvenanceConstants::isMLTDataset(row)) {
+        mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
+        mlId = FileProvenanceConstants::getMLTDatasetId(row);
+      } else if(FileProvenanceConstants::isMLFeature(row)) {
+        mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
+        mlId = FileProvenanceConstants::getMLFeatureId(row);
+      } else if(FileProvenanceConstants::partOfMLModel(row)) {
+        mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
+        mlId = FileProvenanceConstants::getMLModelId(row);
+      } else if(FileProvenanceConstants::partOfMLTDataset(row)) {
+        mlType = FileProvenanceConstants::ML_TYPE_TDATASET_PART;
+        mlId = FileProvenanceConstants::getMLTDatasetId(row);
+      } else if(FileProvenanceConstants::partOfMLFeature(row)) {
+        mlType = FileProvenanceConstants::ML_TYPE_FEATURE_PART;
+        mlId = FileProvenanceConstants::getMLFeatureId(row);
+      }
+      return boost::make_tuple(ElasticHelper::add(row, mlId, mlType), boost::none);
     }
   }
 

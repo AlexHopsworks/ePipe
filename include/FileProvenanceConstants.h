@@ -32,8 +32,11 @@ namespace FileProvenanceConstants {
   const string ML_TYPE_NONE = "none";
   const string ML_TYPE_ERR = "err";
   const string ML_TYPE_MODEL = "model";
+  const string ML_TYPE_MODEL_PART = "model_part";
   const string ML_TYPE_FEATURE = "feature";
+  const string ML_TYPE_FEATURE_PART = "feature_part";
   const string ML_TYPE_TDATASET = "training_dataset";
+  const string ML_TYPE_TDATASET_PART = "training_dataset_part";
 
   const string ML_ID_SPACE = "space_id";
   const string ML_ID_BASE = "id";
@@ -53,19 +56,55 @@ namespace FileProvenanceConstants {
   inline bool isMLModel(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << "Models";
-    return row.mDatasetName == row.mP2Name && row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == mlDataset.str() && row.mP2Name != "" && row.mP2Name == "";
+  }
+
+  inline bool partOfMLModel(FileProvenanceRow row) {
+    stringstream mlDataset;
+    mlDataset << "Models";
+    return row.mDatasetName == mlDataset.str() && row.mP2Name != "";
+  }
+
+  inline string getMLModelId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name << "_" << row.mP2Name;
+    return mlId.str();
   }
 
   inline bool isMLFeature(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_featurestore.db" ;
-    return row.mDatasetName == row.mP1Name && row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == mlDataset.str() && row.mP1Name == "";
+  }
+
+  inline bool partOfMLFeature(FileProvenanceRow row) {
+    stringstream mlDataset;
+    mlDataset << row.mProjectName << "_featurestore.db" ;
+    return row.mDatasetName == mlDataset.str() && row.mP1Name != "";
+  }
+
+  inline string getMLFeatureId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name;
+    return mlId.str();
   }
 
   inline bool isMLTDataset(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_Training_Datasets" ;
-    return row.mDatasetName == row.mP1Name && row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == mlDataset.str() && row.mP1Name == "";
+  }
+
+  inline bool partOfMLTDataset(FileProvenanceRow row) {
+    stringstream mlDataset;
+    mlDataset << row.mProjectName << "_Training_Datasets" ;
+    return row.mDatasetName == mlDataset.str() && row.mP1Name != "";
+  }
+
+  inline string getMLTDatasetId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name;
+    return mlId.str();
   }
 }
 
