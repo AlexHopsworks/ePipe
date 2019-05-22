@@ -56,7 +56,8 @@ namespace FileProvenanceConstants {
   inline bool isMLModel(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << "Models";
-    return row.mDatasetName == mlDataset.str() && row.mP2Name != "" && row.mP2Name == "";
+    LOG_INFO("model: " << std::boolalpha << (row.mDatasetName == mlDataset.str()) << std::boolalpha << (row.mP1Name != "") << std::boolalpha << (row.mP2Name == ""));
+    return row.mDatasetName == mlDataset.str() && row.mP1Name != "" && row.mP2Name == "";
   }
 
   inline bool partOfMLModel(FileProvenanceRow row) {
@@ -67,7 +68,7 @@ namespace FileProvenanceConstants {
 
   inline string getMLModelId(FileProvenanceRow row) {
     stringstream mlId;
-    mlId << row.mP1Name << "_" << row.mP2Name;
+    mlId << row.mP1Name << "_" << row.mInodeName;
     return mlId.str();
   }
 
@@ -85,7 +86,7 @@ namespace FileProvenanceConstants {
 
   inline string getMLFeatureId(FileProvenanceRow row) {
     stringstream mlId;
-    mlId << row.mP1Name;
+    mlId << row.mInodeName;
     return mlId.str();
   }
 
@@ -103,7 +104,7 @@ namespace FileProvenanceConstants {
 
   inline string getMLTDatasetId(FileProvenanceRow row) {
     stringstream mlId;
-    mlId << row.mP1Name;
+    mlId << row.mInodeName;
     return mlId.str();
   }
 }
