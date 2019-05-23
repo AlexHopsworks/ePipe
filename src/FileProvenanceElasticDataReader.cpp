@@ -232,6 +232,10 @@ boost::tuple<string, boost::optional<XAttrPK> > FileProvenanceElasticDataReader:
       LOG_INFO("mlType: feature");
       mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
       mlId = FileProvenanceConstants::getMLFeatureId(row);
+    } else if(FileProvenanceConstants::isMLExperiment(row)) {
+      LOG_INFO("mlType: experiment");
+      mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT;
+      mlId = FileProvenanceConstants::getMLExperimentId(row);
     } else if(FileProvenanceConstants::partOfMLModel(row)) {
       LOG_INFO("mlType: model part");
       mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
@@ -244,6 +248,10 @@ boost::tuple<string, boost::optional<XAttrPK> > FileProvenanceElasticDataReader:
       LOG_INFO("mlType: feature part");
       mlType = FileProvenanceConstants::ML_TYPE_FEATURE_PART;
       mlId = FileProvenanceConstants::getMLFeatureParentId(row);
+    } else if(FileProvenanceConstants::partOfMLExperiment(row)) {
+      LOG_INFO("mlType: experiment part");
+      mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT_PART;
+      mlId = FileProvenanceConstants::getMLExperimentParentId(row);
     } else {
       LOG_INFO("mlType: none");
     }

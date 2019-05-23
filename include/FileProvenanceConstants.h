@@ -37,6 +37,8 @@ namespace FileProvenanceConstants {
   const string ML_TYPE_FEATURE_PART = "feature_part";
   const string ML_TYPE_TDATASET = "training_dataset";
   const string ML_TYPE_TDATASET_PART = "training_dataset_part";
+  const string ML_TYPE_EXPERIMENT = "experiment";
+  const string ML_TYPE_EXPERIMENT_PART = "experiment_part";
 
   const string ML_ID_SPACE = "space_id";
   const string ML_ID_BASE = "id";
@@ -121,6 +123,30 @@ namespace FileProvenanceConstants {
   }
 
   inline string getMLTDatasetParentId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name;
+    return mlId.str();
+  }
+
+  inline bool isMLExperiment(FileProvenanceRow row) {
+    stringstream mlDataset;
+    mlDataset <<"Experiments" ;
+    return row.mDatasetName == mlDataset.str() && row.mP1Name == "";
+  }
+
+  inline bool partOfMLExperiment(FileProvenanceRow row) {
+    stringstream mlDataset;
+    mlDataset << "Experiments" ;
+    return row.mDatasetName == mlDataset.str() && row.mP1Name != "";
+  }
+
+  inline string getMLExperimentId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mInodeName;
+    return mlId.str();
+  }
+
+  inline string getMLExperimentParentId(FileProvenanceRow row) {
     stringstream mlId;
     mlId << row.mP1Name;
     return mlId.str();
