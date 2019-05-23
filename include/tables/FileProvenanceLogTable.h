@@ -67,6 +67,7 @@ struct FileProvenanceRow {
   Int64 mPartitionId;
   Int64 mProjectId;
   Int64 mDatasetId;
+  Int64 mParentId;
   string mInodeName;
   string mProjectName;
   string mDatasetName;
@@ -97,6 +98,7 @@ struct FileProvenanceRow {
     stream << "PartitionId = " << mPartitionId << endl;
     stream << "ProjectId = " << mProjectId << endl;
     stream << "DatasetId = " << mDatasetId << endl;
+    stream << "ParentId = " << mParentId << endl;
     stream << "InodeName = " << mInodeName << endl;
     stream << "ProjectName = " << mProjectName << endl;
     stream << "DatasetName = " << mDatasetName << endl;
@@ -168,6 +170,7 @@ public:
     addColumn("i_partition_id");
     addColumn("project_i_id");
     addColumn("dataset_i_id");
+    addColumn("parent_i_id");
     addColumn("i_name");
     addColumn("project_name");
     addColumn("dataset_name");
@@ -196,16 +199,17 @@ public:
     row.mPartitionId = value[6]->int64_value();
     row.mProjectId = value[7]->int64_value();
     row.mDatasetId = value[8]->int64_value();
-    row.mInodeName = get_string(value[9]);
-    row.mProjectName = get_string(value[10]);
-    row.mDatasetName = get_string(value[11]);
-    row.mP1Name = get_string(value[12]);
-    row.mP2Name = get_string(value[13]);
-    row.mP3Name = get_string(value[14]);
-    row.mUserName = get_string(value[15]);
-    row.mXAttrName = get_string(value[16]);
-    row.mLogicalTimeBatch = value[17]->int32_value();
-    row.mTimestampBatch = value[18]->int64_value();
+    row.mParentId = value[9]->int64_value();
+    row.mInodeName = get_string(value[10]);
+    row.mProjectName = get_string(value[11]);
+    row.mDatasetName = get_string(value[12]);
+    row.mP1Name = get_string(value[13]);
+    row.mP2Name = get_string(value[14]);
+    row.mP3Name = get_string(value[15]);
+    row.mUserName = get_string(value[16]);
+    row.mXAttrName = get_string(value[17]);
+    row.mLogicalTimeBatch = value[18]->int32_value();
+    row.mTimestampBatch = value[19]->int64_value();
     
     LOG_DEBUG("Got file provenance row: ");
     return row;
