@@ -201,55 +201,55 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bul
 }
 
 boost::tuple<string, boost::optional<XAttrPK> > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
-    LOG_INFO("reading provenance for inode:" << row.mInodeId);
-    if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
-      XAttrBufferReader reader(mNdbConnection);
-      XAttrPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName);
-      string val;
-      if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_ID) {
-        val = ElasticHelper::update(row.getPK().to_string(), "ml_id", reader.getMLId(row));
-      } else if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_DEPS) {
-        val = ElasticHelper::update(row.getPK().to_string(), "ml_deps", reader.getMLDeps(row));
-      } else {
-        stringstream cause;
-        cause << "xattr not handled: " << row.mXAttrName;
-        throw cause.str();
-      }
-      return boost::make_tuple(val, xattrBufferKey);
+  LOG_INFO("reading provenance for inode:" << row.mInodeId);
+  if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
+    XAttrBufferReader reader(mNdbConnection);
+    XAttrPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName);
+    string val;
+    if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_ID) {
+      val = ElasticHelper::update(row.getPK().to_string(), "ml_id", reader.getMLId(row));
+    } else if(row.mXAttrName == FileProvenanceConstants::H_XATTR_ML_DEPS) {
+      val = ElasticHelper::update(row.getPK().to_string(), "ml_deps", reader.getMLDeps(row));
     } else {
-      string mlType = FileProvenanceConstants::ML_TYPE_NONE;
-      string mlId = "";
-      LOG_INFO("mlType: " << row.to_string());
-      if(FileProvenanceConstants::isMLModel(row)) {
-        LOG_INFO("mlType: model");
-        mlType = FileProvenanceConstants::ML_TYPE_MODEL;
-        mlId = FileProvenanceConstants::getMLModelId(row);
-      } else if(FileProvenanceConstants::isMLTDataset(row)) {
-        LOG_INFO("mlType: dataset");
-        mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
-        mlId = FileProvenanceConstants::getMLTDatasetId(row);
-      } else if(FileProvenanceConstants::isMLFeature(row)) {
-        LOG_INFO("mlType: feature");
-        mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
-        mlId = FileProvenanceConstants::getMLFeatureId(row);
-      } else if(FileProvenanceConstants::partOfMLModel(row)) {
-        LOG_INFO("mlType: model part");
-        mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
-        mlId = FileProvenanceConstants::getMLModelId(row);
-      } else if(FileProvenanceConstants::partOfMLTDataset(row)) {
-        LOG_INFO("mlType: dataset part");
-        mlType = FileProvenanceConstants::ML_TYPE_TDATASET_PART;
-        mlId = FileProvenanceConstants::getMLTDatasetId(row);
-      } else if(FileProvenanceConstants::partOfMLFeature(row)) {
-        LOG_INFO("mlType: feature part");
-        mlType = FileProvenanceConstants::ML_TYPE_FEATURE_PART;
-        mlId = FileProvenanceConstants::getMLFeatureId(row);
-      } else {
-        LOG_INFO("mlType: none");
-      }
-      return boost::make_tuple(ElasticHelper::add(row, mlId, mlType), boost::none);
+      stringstream cause;
+      cause << "xattr not handled: " << row.mXAttrName;
+      throw cause.str();
     }
+    return boost::make_tuple(val, xattrBufferKey);
+  } else {
+    string mlType = FileProvenanceConstants::ML_TYPE_NONE;
+    string mlId = "";
+    LOG_INFO("mlType: " << row.to_string());
+    if(FileProvenanceConstants::isMLModel(row)) {
+      LOG_INFO("mlType: model");
+      mlType = FileProvenanceConstants::ML_TYPE_MODEL;
+      mlId = FileProvenanceConstants::getMLModelId(row);
+    } else if(FileProvenanceConstants::isMLTDataset(row)) {
+      LOG_INFO("mlType: dataset");
+      mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
+      mlId = FileProvenanceConstants::getMLTDatasetId(row);
+    } else if(FileProvenanceConstants::isMLFeature(row)) {
+      LOG_INFO("mlType: feature");
+      mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
+      mlId = FileProvenanceConstants::getMLFeatureId(row);
+    } else if(FileProvenanceConstants::partOfMLModel(row)) {
+      LOG_INFO("mlType: model part");
+      mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
+      mlId = FileProvenanceConstants::getMLModelParentId(row);
+    } else if(FileProvenanceConstants::partOfMLTDataset(row)) {
+      LOG_INFO("mlType: dataset part");
+      mlType = FileProvenanceConstants::ML_TYPE_TDATASET_PART;
+      mlId = FileProvenanceConstants::getMLTDatasetParentId(row);
+    } else if(FileProvenanceConstants::partOfMLFeature(row)) {
+      LOG_INFO("mlType: feature part");
+      mlType = FileProvenanceConstants::ML_TYPE_FEATURE_PART;
+      mlId = FileProvenanceConstants::getMLFeatureParentId(row);
+    } else {
+      LOG_INFO("mlType: none");
+    }
+    return boost::make_tuple(ElasticHelper::add(row, mlId, mlType), boost::none);
   }
+}
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {
   

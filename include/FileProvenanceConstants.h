@@ -72,6 +72,12 @@ namespace FileProvenanceConstants {
     return mlId.str();
   }
 
+  inline string getMLModelParentId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name << "_" << row.mP2Name;
+    return mlId.str();
+  }
+
   inline bool isMLFeature(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_featurestore.db" ;
@@ -90,6 +96,12 @@ namespace FileProvenanceConstants {
     return mlId.str();
   }
 
+  inline string getMLFeatureParentId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name;
+    return mlId.str();
+  }
+
   inline bool isMLTDataset(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_Training_Datasets" ;
@@ -105,6 +117,12 @@ namespace FileProvenanceConstants {
   inline string getMLTDatasetId(FileProvenanceRow row) {
     stringstream mlId;
     mlId << row.mInodeName;
+    return mlId.str();
+  }
+
+  inline string getMLTDatasetParentId(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mP1Name;
     return mlId.str();
   }
 }
