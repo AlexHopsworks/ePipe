@@ -41,7 +41,8 @@ public:
   virtual ~FileProvenanceElasticDataReader();
 private:
   void processAddedandDeleted(Pq* data_batch, Bulk<ProvKeys>& bulk);
-  boost::tuple<string, boost::optional<XAttrPK> > process_row(FileProvenanceRow row);
+  boost::tuple<string, boost::optional<FPXAttrBufferPK> > process_row(FileProvenanceRow row);
+  FileProvenanceXAttrBufferTable mXAttr;
 };
 
 class FileProvenanceElasticDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn, ProvKeys>{

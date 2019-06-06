@@ -178,13 +178,6 @@ class FsMutationsHelper {
 
 class XAttrTable : public DBTable<XAttrRow> {
 
-protected:
-  XAttrTable(string table_name) : DBTable(table_name){
-    addColumn("inode_id");
-    addColumn("namespace");
-    addColumn("name");
-    addColumn("value");
-  }
 public:
 
   XAttrTable() : DBTable("hdfs_xattrs") {
@@ -209,15 +202,6 @@ public:
     a[1] = ns;
     a[2] = name;
     return DBTable<XAttrRow>::doRead(connection, a);
-  }
-
-  boost::optional<XAttrRow> get(Ndb* connection, XAttrPK key) {
-    XAttrRow row = get(connection, key.mInodeId, key.mNamespace, key.mName);
-    if(readCheckExists(key, row)) {
-      return row;
-    } else {
-      return boost::none;
-    }
   }
 
   XAttrMap get(Ndb* connection, Fmq* data_batch) {
@@ -273,11 +257,6 @@ public:
     AnyMap args;
     args[0] = inodeId;
     return doRead(connection, PRIMARY_INDEX, args);
-  }
-
-private:
-  static bool readCheckExists(XAttrPK key, XAttrRow row) {
-    return key.mInodeId == row.mInodeId && key.mNamespace == row.mNamespace && key.mName == row.mName;
   }
 };
 #endif //EPIPE_XATTRTABLE_H
