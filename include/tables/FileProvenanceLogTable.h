@@ -73,10 +73,7 @@ struct FileProvenanceRow {
   string mDatasetName;
   string mP1Name;
   string mP2Name;
-  string mP3Name;
   Int64 mP1Id;
-  Int64 mP2Id;
-  Int64 mP3Id;
   string mUserName;
   string mXAttrName;
   int mLogicalTimeBatch;
@@ -107,11 +104,8 @@ struct FileProvenanceRow {
     stream << "DatasetName = " << mDatasetName << endl;
     stream << "Parent1Name = " << mP1Name << endl;
     stream << "Parent2Name = " << mP2Name << endl;
-    stream << "Parent3Name = " << mP3Name << endl;
     stream << "Parent1Id = " << mP1Id << endl;
-    stream << "Parent2Id = " << mP1Id << endl;
-    stream << "Parent3Id = " << mP1Id << endl;
-    stream << "userName = " << mUserName << endl;
+    stream << "UserName = " << mUserName << endl;
     stream << "XAttrName = " << mXAttrName << endl;
     stream << "LogicalTimeBatch = " << mLogicalTimeBatch << endl;
     stream << "TimestampBatch = " << mTimestampBatch << endl;
@@ -182,10 +176,7 @@ public:
     addColumn("dataset_name");
     addColumn("i_p1_name");
     addColumn("i_p2_name");
-    addColumn("i_p3_name");
     addColumn("i_p1_id");
-    addColumn("i_p2_id");
-    addColumn("i_p3_id");
     addColumn("io_user_name");
     addColumn("i_xattr_name");
     addColumn("io_logical_time_batch");
@@ -214,14 +205,11 @@ public:
     row.mDatasetName = get_string(value[12]);
     row.mP1Name = get_string(value[13]);
     row.mP2Name = get_string(value[14]);
-    row.mP3Name = get_string(value[15]);
-    row.mP1Id = value[16]->int64_value();
-    row.mP2Id = value[17]->int64_value();
-    row.mP3Id = value[18]->int64_value();
-    row.mUserName = get_string(value[19]);
-    row.mXAttrName = get_string(value[20]);
-    row.mLogicalTimeBatch = value[21]->int32_value();
-    row.mTimestampBatch = value[22]->int64_value();
+    row.mP1Id = value[15]->int64_value();
+    row.mUserName = get_string(value[16]);
+    row.mXAttrName = get_string(value[17]);
+    row.mLogicalTimeBatch = value[18]->int32_value();
+    row.mTimestampBatch = value[19]->int64_value();
     
     LOG_DEBUG("Got file provenance row: ");
     return row;
