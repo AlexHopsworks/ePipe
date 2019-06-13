@@ -59,13 +59,14 @@ namespace FileProvenanceConstants {
     stringstream mlDataset;
     mlDataset << "Models";
     LOG_INFO("model: " << std::boolalpha << (row.mDatasetName == mlDataset.str()) << std::boolalpha << (row.mP1Name != "") << std::boolalpha << (row.mP2Name == ""));
-    return row.mDatasetName == mlDataset.str() && row.mP1Name != "" && row.mP2Name == "";
+    return row.mDatasetName == mlDataset.str() && row.mP1Id == row.mParentId;
   }
 
   inline bool partOfMLModel(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << "Models";
-    return row.mDatasetName == mlDataset.str() && row.mP2Name != "";
+    return row.mDatasetName == mlDataset.str() 
+       && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Id != row.mParentId;
   }
 
   inline string getMLModelId(FileProvenanceRow row) {
@@ -83,13 +84,14 @@ namespace FileProvenanceConstants {
   inline bool isMLFeature(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_featurestore.db" ;
-    return row.mDatasetName == mlDataset.str() && row.mP1Name == "";
+    return row.mDatasetName == mlDataset.str() && row.mDatasetId == row.mParentId;
   }
 
   inline bool partOfMLFeature(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_featurestore.db" ;
-    return row.mDatasetName == mlDataset.str() && row.mP1Name != "";
+    return row.mDatasetName == mlDataset.str() 
+      && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
   }
 
   inline string getMLFeatureId(FileProvenanceRow row) {
@@ -107,13 +109,14 @@ namespace FileProvenanceConstants {
   inline bool isMLTDataset(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_Training_Datasets" ;
-    return row.mDatasetName == mlDataset.str() && row.mP1Name == "";
+    return row.mDatasetName == mlDataset.str() && row.mDatasetId == row.mParentId;
   }
 
   inline bool partOfMLTDataset(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_Training_Datasets" ;
-    return row.mDatasetName == mlDataset.str() && row.mP1Name != "";
+    return row.mDatasetName == mlDataset.str() 
+      && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
   }
 
   inline string getMLTDatasetId(FileProvenanceRow row) {
@@ -130,14 +133,15 @@ namespace FileProvenanceConstants {
 
   inline bool isMLExperiment(FileProvenanceRow row) {
     stringstream mlDataset;
-    mlDataset <<"Experiments" ;
-    return row.mDatasetName == mlDataset.str() && row.mP1Name == "";
+    mlDataset <<"Experiments";
+    return row.mDatasetName == mlDataset.str() && row.mDatasetId == row.mParentId;
   }
 
   inline bool partOfMLExperiment(FileProvenanceRow row) {
     stringstream mlDataset;
     mlDataset << "Experiments" ;
-    return row.mDatasetName == mlDataset.str() && row.mP1Name != "";
+    return row.mDatasetName == mlDataset.str() 
+      && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
   }
 
   inline string getMLExperimentId(FileProvenanceRow row) {
