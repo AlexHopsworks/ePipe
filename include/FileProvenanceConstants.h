@@ -55,105 +55,118 @@ namespace FileProvenanceConstants {
   const string H_XATTR_ML_ID = "ml_id";
   const string H_XATTR_ML_DEPS = "ml_deps";
 
-  inline bool isMLModel(FileProvenanceRow row) {
+  inline bool oneLvlDeep(FileProvenanceRow row) {
+    return row.mDatasetId != row.mInodeId && row.mDatasetId == row.mParentId;
+  }
+
+  inline bool twoLvlDeep(FileProvenanceRow row) {
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name == "";
+  }
+
+  inline bool twoPlusLvlDeep(FileProvenanceRow row) {
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "";
+  }
+
+  inline string twoNameForAsset(FileProvenanceRow row) {
+    stringstream mlId;
+    mlId << row.mParentName << "_" << row.mInodeName;
+    return mlId.str();
+  }
+
+  inline string twoNameForPart(FileProvenanceRow row) {
+    stringstream mlId;
+    if(row.mP2Name == "") {
+      mlId << row.mP1Name << "_" << row.mParentName;
+    } else {
+      mlId << row.mP1Name << "_" << row.mP2Name;
+    }
+    return mlId.str();
+  }
+
+  inline string oneNameForPart(FileProvenanceRow row) {
+    stringstream mlId;
+    if(row.mP1Name == "") {
+      mlId << row.mParentName;
+    } else {
+      mlId << row.mP1Name;
+    }
+    return mlId.str();
+  }
+
+  inline bool isDatasetName1(FileProvenanceRow row, string part) {
     stringstream mlDataset;
-    mlDataset << "Models";
-    LOG_INFO("model: " << std::boolalpha << (row.mDatasetName == mlDataset.str()) << std::boolalpha << (row.mP1Name != "") << std::boolalpha << (row.mP2Name == ""));
-    return row.mDatasetName == mlDataset.str() && row.mP1Id == row.mParentId;
+    mlDataset << part;
+    return row.mDatasetName == mlDataset.str();
+  }
+
+  inline bool isDatasetName2(FileProvenanceRow row, string part) {
+    stringstream mlDataset;
+    mlDataset << row.mProjectName << "_" << part;
+    return row.mDatasetName == mlDataset.str();
+  }
+
+  inline bool isMLModel(FileProvenanceRow row) {
+    return isDatasetName1(row, "Models") && twoLvlDeep(row);
   }
 
   inline bool partOfMLModel(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset << "Models";
-    return row.mDatasetName == mlDataset.str() 
-       && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Id != row.mParentId;
+    return isDatasetName1(row, "Models") && twoPlusLvlDeep(row);
   }
 
   inline string getMLModelId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mP1Name << "_" << row.mInodeName;
-    return mlId.str();
+    return twoNameForAsset(row);
   }
 
   inline string getMLModelParentId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mP1Name << "_" << row.mP2Name;
-    return mlId.str();
+    return twoNameForPart(row);
   }
 
   inline bool isMLFeature(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset << row.mProjectName << "_featurestore.db" ;
-    return row.mDatasetName == mlDataset.str() && row.mDatasetId == row.mParentId;
+    return isDatasetName2(row, "_featurestore.db") && oneLvlDeep(row);
   }
 
   inline bool partOfMLFeature(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset << row.mProjectName << "_featurestore.db" ;
-    return row.mDatasetName == mlDataset.str() 
-      && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
+    return isDatasetName2(row, "_featurestore.db") && twoLvlDeep(row);
   }
 
   inline string getMLFeatureId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mInodeName;
-    return mlId.str();
+    return row.mInodeName;
   }
 
   inline string getMLFeatureParentId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mP1Name;
-    return mlId.str();
+    return oneNameForPart(row);
   }
 
   inline bool isMLTDataset(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset << row.mProjectName << "_Training_Datasets" ;
-    return row.mDatasetName == mlDataset.str() && row.mDatasetId == row.mParentId;
+    return isDatasetName2(row, "_Training_Datasets") && oneLvlDeep(row);
   }
 
   inline bool partOfMLTDataset(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset << row.mProjectName << "_Training_Datasets" ;
-    return row.mDatasetName == mlDataset.str() 
-      && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
+    return isDatasetName2(row, "_Training_Datasets") && twoLvlDeep(row);
   }
 
   inline string getMLTDatasetId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mInodeName;
-    return mlId.str();
+    return row.mInodeName;
   }
 
   inline string getMLTDatasetParentId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mP1Name;
-    return mlId.str();
+    return oneNameForPart(row);
   }
 
   inline bool isMLExperiment(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset <<"Experiments";
-    return row.mDatasetName == mlDataset.str() && row.mDatasetId == row.mParentId;
+    return isDatasetName1(row, "Experiments") && oneLvlDeep(row);
   }
 
   inline bool partOfMLExperiment(FileProvenanceRow row) {
-    stringstream mlDataset;
-    mlDataset << "Experiments" ;
-    return row.mDatasetName == mlDataset.str() 
-      && row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
+    return isDatasetName1(row, "Experiments") && twoLvlDeep(row);
   }
 
   inline string getMLExperimentId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mInodeName;
-    return mlId.str();
+    return row.mInodeName;
   }
 
   inline string getMLExperimentParentId(FileProvenanceRow row) {
-    stringstream mlId;
-    mlId << row.mP1Name;
-    return mlId.str();
+    return oneNameForPart(row);
   }
 }
 
