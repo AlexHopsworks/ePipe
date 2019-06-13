@@ -41,7 +41,7 @@ public:
   virtual ~FileProvenanceElasticDataReader();
 private:
   void processAddedandDeleted(Pq* data_batch, Bulk<ProvKeys>& bulk);
-  boost::tuple<string, boost::optional<FPXAttrBufferPK> > process_row(FileProvenanceRow row);
+  std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > process_row(FileProvenanceRow row);
   FileProvenanceXAttrBufferTable mXAttr;
 };
 

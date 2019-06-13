@@ -150,7 +150,7 @@ struct FileProvenanceRowComparator {
 
 typedef ConcurrentQueue<FileProvenanceRow> CPRq;
 typedef boost::heap::priority_queue<FileProvenanceRow, boost::heap::compare<FileProvenanceRowComparator> > PRpq;
-typedef vector<FileProvenancePK> PKeys;
+typedef vector<boost::optional<FileProvenancePK> > PKeys;
 typedef vector<FileProvenanceRow> Pq;
 
 typedef vector<FileProvenanceRow> Pv;
@@ -218,17 +218,20 @@ public:
   void removeLogs(Ndb* connection, PKeys& pks) {
     start(connection);
     for (PKeys::iterator it = pks.begin(); it != pks.end(); ++it) {
-      FileProvenancePK pk = *it;
-      AnyMap a;
-      a[0] = pk.mInodeId;
-      a[1] = pk.mOperation;
-      a[2] = pk.mLogicalTime;
-      a[3] = pk.mTimestamp;
-      a[4] = pk.mAppId;
-      a[5] = pk.mUserId;
-      
-      doDelete(a);
-      LOG_DEBUG("Delete file provenance row: " << pk.to_string());
+
+      boost::optional<FileProvenancePK> pk = *it;
+      if(pk) {
+        AnyMap a;
+        a[0] = pk.get().mInodeId;
+        a[1] = pk.get().mOperation;
+        a[2] = pk.get().mLogicalTime;
+        a[3] = pk.get().mTimestamp;
+        a[4] = pk.get().mAppId;
+        a[5] = pk.get().mUserId;
+        
+        doDelete(a);
+        LOG_DEBUG("Delete file provenance row: " << pk.get().to_string());
+      }
     }
     end();
   }

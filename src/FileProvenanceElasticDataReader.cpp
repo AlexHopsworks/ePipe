@@ -30,13 +30,13 @@ FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connectio
 class ElasticHelper {
 public:
 
-  static string add(FileProvenanceRow row, string mlId, string mlType) {
+  static string stateCreate(string id, FileProvenanceRow row, string mlId, string mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
-    opVal.AddMember("_id", rapidjson::Value().SetString(row.getPK().to_string().c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
 
@@ -47,7 +47,6 @@ public:
     rapidjson::Value dataVal(rapidjson::kObjectType);
 
     dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
-    dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
     dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
     dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
@@ -58,7 +57,8 @@ public:
     dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_id",            rapidjson::Value().SetString(mlId.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
-     
+    dataVal.AddMember("alive",            rapidjson::Value().SetBool(true), dataAlloc);
+
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
 
@@ -75,13 +75,13 @@ public:
     return out.str();
   }
 
-  static string addXAttr(string key, FileProvenanceRow row, string val) {
+  static string stateDelete(string id) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
-    opVal.AddMember("_id", rapidjson::Value().SetString(key.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
 
@@ -91,13 +91,87 @@ public:
 
     rapidjson::Value dataVal(rapidjson::kObjectType);
 
-    rapidjson::Value rname(row.mXAttrName.c_str(), dataAlloc);
-    rapidjson::Value rval(val.c_str(), dataAlloc);
+    dataVal.AddMember("alive",            rapidjson::Value().SetBool(false), dataAlloc);
+
+    data.AddMember("doc", dataVal, dataAlloc);
+    data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
+
+    rapidjson::StringBuffer opBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
+    op.Accept(opWriter);
+
+    rapidjson::StringBuffer dataBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
+    data.Accept(dataWriter);
+    
+    stringstream out;
+    out << opBuffer.GetString() << endl << dataBuffer.GetString();
+    return out.str();
+  }
+
+  static string operationAdd(string id, FileProvenanceRow row) {
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
+
+    rapidjson::Value opVal(rapidjson::kObjectType);
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+
+    op.AddMember("update", opVal, opAlloc);
+
+    rapidjson::Document data;
+    data.SetObject();
+    rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
+
+    rapidjson::Value dataVal(rapidjson::kObjectType);
+
+    dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
+    dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
+    dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
+    dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("io_user_id",       rapidjson::Value().SetInt(row.mUserId), dataAlloc);
+    dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+        
+    data.AddMember("doc", dataVal, dataAlloc);
+    data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
+
+    rapidjson::StringBuffer opBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
+    op.Accept(opWriter);
+
+    rapidjson::StringBuffer dataBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
+    data.Accept(dataWriter);
+    
+    stringstream out;
+    out << opBuffer.GetString() << endl << dataBuffer.GetString();
+    return out.str();
+  }
+
+  static string addXAttr(string id, FileProvenanceRow row, string val) {
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
+
+    rapidjson::Value opVal(rapidjson::kObjectType);
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+
+    op.AddMember("update", opVal, opAlloc);
+
+    rapidjson::Document data;
+    data.SetObject();
+    rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
+
+    rapidjson::Value dataVal(rapidjson::kObjectType);
+
     dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
     dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
     dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
     dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+    rapidjson::Value rname(row.mXAttrName.c_str(), dataAlloc);
+    rapidjson::Value rval(val.c_str(), dataAlloc);
     dataVal.AddMember(rname, rval, dataAlloc);
       
     data.AddMember("doc", dataVal, dataAlloc);
@@ -130,6 +204,17 @@ public:
     return readable_timestamp.str();
   }
 
+  static string opId(FileProvenanceRow row) {
+    stringstream out;
+    out << row.mInodeId << "-" << row.mOperation << "-" << row.mLogicalTime << "-" << row.mTimestamp << "-" << row.mAppId << "-" << row.mUserId;
+    return out.str();
+  }
+
+  static string stateId(FileProvenanceRow row) {
+    stringstream out;
+    out << row.mInodeId << "-" << row.mLogicalTime << "-" << row.mTimestamp << "-" << row.mAppId << "-" << row.mUserId;
+    return out.str();
+  }
 };
 
 class XAttrBufferReader {
@@ -157,72 +242,84 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bul
   for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it, i++) {
     FileProvenanceRow row = *it;
     arrivalTimes[i] = row.mEventCreationTime;
-    FileProvenancePK fpLogPK = row.getPK();
-    boost::tuple<string, boost::optional<FPXAttrBufferPK> > result = process_row(row);
-    boost::optional<FPXAttrBufferPK> fpXAttrBufferPK = boost::get<1>(result);
-    bulk.mPKs.mFileProvLogKs.push_back(fpLogPK);
-    bulk.mPKs.mXAttrBufferKs.push_back(fpXAttrBufferPK);
-    out << boost::get<0>(result) << endl;
+    std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > result = process_row(row);
+    for(boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > item : result) {
+      boost::optional<FileProvenancePK> fpPK = boost::get<1>(item);
+      boost::optional<FPXAttrBufferPK> fpXAttrBufferPK = boost::get<2>(item);
+      bulk.mPKs.mFileProvLogKs.push_back(fpPK);
+      bulk.mPKs.mXAttrBufferKs.push_back(fpXAttrBufferPK);
+      out << boost::get<0>(item) << endl;
+    }
   }
   bulk.mArrivalTimes = arrivalTimes;
   bulk.mJSON = out.str();
 }
 
-boost::tuple<string, boost::optional<FPXAttrBufferPK> > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
+std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
   LOG_INFO("reading provenance for inode:" << row.mInodeId);
+  std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > result;
   if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
     FPXAttrBufferPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName, row.mLogicalTime);
     boost::optional<FPXAttrBufferRow> xAttrBufferVal = mXAttr.get(mNdbConnection, xattrBufferKey);
     string val;
     if(xAttrBufferVal) {
-      val = ElasticHelper::addXAttr(row.getPK().to_string(), row, xAttrBufferVal.get().mValue);
+      val = ElasticHelper::addXAttr(ElasticHelper::opId(row), row, xAttrBufferVal.get().mValue);
     } else {
       stringstream cause;
       cause << "no such xattr in buffer: " << row.mXAttrName;
       throw cause.str();
     }
-    return boost::make_tuple(val, xattrBufferKey);
+    result.push_back(boost::make_tuple(val, row.getPK(), xattrBufferKey));
   } else {
-    string mlType = FileProvenanceConstants::ML_TYPE_NONE;
-    string mlId = "";
-    LOG_INFO("mlType: " << row.to_string());
-    if(FileProvenanceConstants::isMLModel(row)) {
-      LOG_INFO("mlType: model");
-      mlType = FileProvenanceConstants::ML_TYPE_MODEL;
-      mlId = FileProvenanceConstants::getMLModelId(row);
-    } else if(FileProvenanceConstants::isMLTDataset(row)) {
-      LOG_INFO("mlType: dataset");
-      mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
-      mlId = FileProvenanceConstants::getMLTDatasetId(row);
-    } else if(FileProvenanceConstants::isMLFeature(row)) {
-      LOG_INFO("mlType: feature");
-      mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
-      mlId = FileProvenanceConstants::getMLFeatureId(row);
-    } else if(FileProvenanceConstants::isMLExperiment(row)) {
-      LOG_INFO("mlType: experiment");
-      mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT;
-      mlId = FileProvenanceConstants::getMLExperimentId(row);
-    } else if(FileProvenanceConstants::partOfMLModel(row)) {
-      LOG_INFO("mlType: model part");
-      mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
-      mlId = FileProvenanceConstants::getMLModelParentId(row);
-    } else if(FileProvenanceConstants::partOfMLTDataset(row)) {
-      LOG_INFO("mlType: dataset part");
-      mlType = FileProvenanceConstants::ML_TYPE_TDATASET_PART;
-      mlId = FileProvenanceConstants::getMLTDatasetParentId(row);
-    } else if(FileProvenanceConstants::partOfMLFeature(row)) {
-      LOG_INFO("mlType: feature part");
-      mlType = FileProvenanceConstants::ML_TYPE_FEATURE_PART;
-      mlId = FileProvenanceConstants::getMLFeatureParentId(row);
-    } else if(FileProvenanceConstants::partOfMLExperiment(row)) {
-      LOG_INFO("mlType: experiment part");
-      mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT_PART;
-      mlId = FileProvenanceConstants::getMLExperimentParentId(row);
-    } else {
-      LOG_INFO("mlType: none");
+    string op = ElasticHelper::operationAdd(ElasticHelper::opId(row), row);
+    result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
+    if(row.mOperation == FileProvenanceConstants::H_OP_CREATE) {
+      string mlType = FileProvenanceConstants::ML_TYPE_NONE;
+      string mlId = "";
+      LOG_INFO("mlType: " << row.to_string());
+      if(FileProvenanceConstants::isMLModel(row)) {
+        LOG_INFO("mlType: model");
+        mlType = FileProvenanceConstants::ML_TYPE_MODEL;
+        mlId = FileProvenanceConstants::getMLModelId(row);
+      } else if(FileProvenanceConstants::isMLTDataset(row)) {
+        LOG_INFO("mlType: dataset");
+        mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
+        mlId = FileProvenanceConstants::getMLTDatasetId(row);
+      } else if(FileProvenanceConstants::isMLFeature(row)) {
+        LOG_INFO("mlType: feature");
+        mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
+        mlId = FileProvenanceConstants::getMLFeatureId(row);
+      } else if(FileProvenanceConstants::isMLExperiment(row)) {
+        LOG_INFO("mlType: experiment");
+        mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT;
+        mlId = FileProvenanceConstants::getMLExperimentId(row);
+      } else if(FileProvenanceConstants::partOfMLModel(row)) {
+        LOG_INFO("mlType: model part");
+        mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
+        mlId = FileProvenanceConstants::getMLModelParentId(row);
+      } else if(FileProvenanceConstants::partOfMLTDataset(row)) {
+        LOG_INFO("mlType: dataset part");
+        mlType = FileProvenanceConstants::ML_TYPE_TDATASET_PART;
+        mlId = FileProvenanceConstants::getMLTDatasetParentId(row);
+      } else if(FileProvenanceConstants::partOfMLFeature(row)) {
+        LOG_INFO("mlType: feature part");
+        mlType = FileProvenanceConstants::ML_TYPE_FEATURE_PART;
+        mlId = FileProvenanceConstants::getMLFeatureParentId(row);
+      } else if(FileProvenanceConstants::partOfMLExperiment(row)) {
+        LOG_INFO("mlType: experiment part");
+        mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT_PART;
+        mlId = FileProvenanceConstants::getMLExperimentParentId(row);
+      } else {
+        LOG_INFO("mlType: none");
+      }
+      string state = ElasticHelper::stateCreate(ElasticHelper::stateId(row), row, mlId, mlType);
+      result.push_back(boost::make_tuple(state, boost::none, boost::none));
+    } else if(row.mOperation == FileProvenanceConstants::H_OP_DELETE) {
+      string state = ElasticHelper::stateDelete(ElasticHelper::stateId(row));
+      result.push_back(boost::make_tuple(state, boost::none, boost::none));
     }
-    return boost::make_tuple(ElasticHelper::add(row, mlId, mlType), boost::none);
   }
+  return result;
 }
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {
