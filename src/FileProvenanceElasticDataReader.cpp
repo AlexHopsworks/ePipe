@@ -30,7 +30,7 @@ FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connectio
 class ElasticHelper {
 public:
 
-  static string mlAlive(string id, FileProvenanceRow row, string mlId, string mlType) {
+  static string aliveState(string id, FileProvenanceRow row, string mlId, string mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -67,7 +67,7 @@ public:
     return out.str();
   }
 
-  static string deleteState(string id) {
+  static string deadState(string id) {
 
     rapidjson::Document req;
     req.SetObject();
@@ -314,7 +314,7 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
         LOG_INFO("mlType: experiment");
         mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT;
         mlId = FileProvenanceConstants::getMLExperimentId(row);
-        string state = ElasticHelper::createMLState(ElasticHelper::stateId(row), row, mlId, mlType);
+        string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlId, mlType);
         result.push_back(boost::make_tuple(state, boost::none, boost::none));
       } else if(FileProvenanceConstants::partOfMLModel(row)) {
         LOG_INFO("mlType: model part");
@@ -340,7 +340,7 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
     } else if(row.mOperation == FileProvenanceConstants::H_OP_DELETE) {
       string op = ElasticHelper::otherOp(ElasticHelper::opId(row), row);
       result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
-      string state = ElasticHelper::deleteState(ElasticHelper::stateId(row));
+      string state = ElasticHelper::deadState(ElasticHelper::stateId(row));
       result.push_back(boost::make_tuple(state, boost::none, boost::none));
     } else {
       string op = ElasticHelper::otherOp(ElasticHelper::opId(row), row);
