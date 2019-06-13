@@ -30,7 +30,7 @@ FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connectio
 class ElasticHelper {
 public:
 
-  static string createMLState(string id, FileProvenanceRow row, string mlId, string mlType) {
+  static string mlAlive(string id, FileProvenanceRow row, string mlId, string mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -47,13 +47,6 @@ public:
     rapidjson::Value dataVal(rapidjson::kObjectType);
 
     dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
-    dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
-    dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
-    dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
-    dataVal.AddMember("io_user_id",       rapidjson::Value().SetInt(row.mUserId), dataAlloc);
-    dataVal.AddMember("project_i_id",     rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
-    dataVal.AddMember("dataset_i_id",     rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
-    dataVal.AddMember("i_name",           rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_id",            rapidjson::Value().SetString(mlId.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
@@ -74,7 +67,7 @@ public:
     return out.str();
   }
 
-  static string deleteMLState(string id) {
+  static string deleteState(string id) {
 
     rapidjson::Document req;
     req.SetObject();
@@ -321,6 +314,8 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
         LOG_INFO("mlType: experiment");
         mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT;
         mlId = FileProvenanceConstants::getMLExperimentId(row);
+        string state = ElasticHelper::createMLState(ElasticHelper::stateId(row), row, mlId, mlType);
+        result.push_back(boost::make_tuple(state, boost::none, boost::none));
       } else if(FileProvenanceConstants::partOfMLModel(row)) {
         LOG_INFO("mlType: model part");
         mlType = FileProvenanceConstants::ML_TYPE_MODEL_PART;
@@ -342,12 +337,10 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
       }
       string op = ElasticHelper::createOp(ElasticHelper::opId(row), row, mlId, mlType);
       result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
-      string state = ElasticHelper::createMLState(ElasticHelper::stateId(row), row, mlId, mlType);
-      result.push_back(boost::make_tuple(state, boost::none, boost::none));
     } else if(row.mOperation == FileProvenanceConstants::H_OP_DELETE) {
       string op = ElasticHelper::otherOp(ElasticHelper::opId(row), row);
       result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
-      string state = ElasticHelper::deleteMLState(ElasticHelper::stateId(row));
+      string state = ElasticHelper::deleteState(ElasticHelper::stateId(row));
       result.push_back(boost::make_tuple(state, boost::none, boost::none));
     } else {
       string op = ElasticHelper::otherOp(ElasticHelper::opId(row), row);
