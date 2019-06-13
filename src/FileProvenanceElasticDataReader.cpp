@@ -30,7 +30,7 @@ FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connectio
 class ElasticHelper {
 public:
 
-  static string stateCreate(string id, FileProvenanceRow row, string mlId, string mlType) {
+  static string createMLState(string id, FileProvenanceRow row, string mlId, string mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -75,7 +75,27 @@ public:
     return out.str();
   }
 
-  static string stateDelete(string id) {
+  static string deleteMLState(string id) {
+
+    rapidjson::Document req;
+    req.SetObject();
+
+    rapidjson::Value idVal(rapidjson::kObjectType);
+    
+    idVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), req.GetAllocator()), req.GetAllocator());
+
+    req.AddMember("delete", idVal, req.GetAllocator());
+
+    rapidjson::StringBuffer reqBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> reqWriter(reqBuffer);
+    req.Accept(reqWriter);
+    
+    stringstream out;
+    out << reqBuffer.GetString();
+    return out.str();
+  }
+
+  static string createOp(string id, FileProvenanceRow row, string mlId, string mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -91,8 +111,19 @@ public:
 
     rapidjson::Value dataVal(rapidjson::kObjectType);
 
-    dataVal.AddMember("alive",            rapidjson::Value().SetBool(false), dataAlloc);
-
+    dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
+    dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
+    dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
+    dataVal.AddMember("io_app_id",        rapidjson::Value().SetString(row.mAppId.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("io_user_id",       rapidjson::Value().SetInt(row.mUserId), dataAlloc);
+    dataVal.AddMember("project_i_id",     rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
+    dataVal.AddMember("dataset_i_id",     rapidjson::Value().SetInt64(row.mDatasetId), dataAlloc);
+    dataVal.AddMember("i_name",           rapidjson::Value().SetString(row.mInodeName.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("ml_id",            rapidjson::Value().SetString(mlId.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("ml_type",          rapidjson::Value().SetString(mlType.c_str(), dataAlloc), dataAlloc);
+     
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
 
@@ -109,7 +140,7 @@ public:
     return out.str();
   }
 
-  static string operationAdd(string id, FileProvenanceRow row) {
+  static string otherOp(string id, FileProvenanceRow row) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -149,7 +180,7 @@ public:
     return out.str();
   }
 
-  static string addXAttr(string id, FileProvenanceRow row, string val) {
+  static string xattrOp(string id, FileProvenanceRow row, string val) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
@@ -212,7 +243,7 @@ public:
 
   static string stateId(FileProvenanceRow row) {
     stringstream out;
-    out << row.mInodeId << "-" << row.mLogicalTime << "-" << row.mTimestamp << "-" << row.mAppId << "-" << row.mUserId;
+    out << row.mInodeId;
     return out.str();
   }
 };
@@ -263,7 +294,7 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
     boost::optional<FPXAttrBufferRow> xAttrBufferVal = mXAttr.get(mNdbConnection, xattrBufferKey);
     string val;
     if(xAttrBufferVal) {
-      val = ElasticHelper::addXAttr(ElasticHelper::opId(row), row, xAttrBufferVal.get().mValue);
+      val = ElasticHelper::xattrOp(ElasticHelper::opId(row), row, xAttrBufferVal.get().mValue);
     } else {
       stringstream cause;
       cause << "no such xattr in buffer: " << row.mXAttrName;
@@ -271,8 +302,6 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
     }
     result.push_back(boost::make_tuple(val, row.getPK(), xattrBufferKey));
   } else {
-    string op = ElasticHelper::operationAdd(ElasticHelper::opId(row), row);
-    result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
     if(row.mOperation == FileProvenanceConstants::H_OP_CREATE) {
       string mlType = FileProvenanceConstants::ML_TYPE_NONE;
       string mlId = "";
@@ -312,11 +341,18 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
       } else {
         LOG_INFO("mlType: none");
       }
-      string state = ElasticHelper::stateCreate(ElasticHelper::stateId(row), row, mlId, mlType);
+      string op = ElasticHelper::createOp(ElasticHelper::opId(row), row, mlId, mlType);
+      result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
+      string state = ElasticHelper::createMLState(ElasticHelper::stateId(row), row, mlId, mlType);
       result.push_back(boost::make_tuple(state, boost::none, boost::none));
     } else if(row.mOperation == FileProvenanceConstants::H_OP_DELETE) {
-      string state = ElasticHelper::stateDelete(ElasticHelper::stateId(row));
+      string op = ElasticHelper::otherOp(ElasticHelper::opId(row), row);
+      result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
+      string state = ElasticHelper::deleteMLState(ElasticHelper::stateId(row));
       result.push_back(boost::make_tuple(state, boost::none, boost::none));
+    } else {
+      string op = ElasticHelper::otherOp(ElasticHelper::opId(row), row);
+      result.push_back(boost::make_tuple(op, row.getPK(), boost::none));
     }
   }
   return result;
