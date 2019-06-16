@@ -63,6 +63,10 @@ namespace FileProvenanceConstants {
     return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name == "";
   }
 
+  inline bool onePlusLvlDeep(FileProvenanceRow row) {
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
+  }
+
   inline bool twoPlusLvlDeep(FileProvenanceRow row) {
     return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "";
   }
@@ -126,7 +130,7 @@ namespace FileProvenanceConstants {
   }
 
   inline bool partOfMLFeature(FileProvenanceRow row) {
-    return isDatasetName2(row, "_featurestore.db") && twoLvlDeep(row);
+    return isDatasetName2(row, "_featurestore.db") && onePlusLvlDeep(row);
   }
 
   inline string getMLFeatureId(FileProvenanceRow row) {
@@ -142,7 +146,7 @@ namespace FileProvenanceConstants {
   }
 
   inline bool partOfMLTDataset(FileProvenanceRow row) {
-    return isDatasetName2(row, "_Training_Datasets") && twoLvlDeep(row);
+    return isDatasetName2(row, "_Training_Datasets") && onePlusLvlDeep(row);
   }
 
   inline string getMLTDatasetId(FileProvenanceRow row) {
@@ -158,7 +162,7 @@ namespace FileProvenanceConstants {
   }
 
   inline bool partOfMLExperiment(FileProvenanceRow row) {
-    return isDatasetName1(row, "Experiments") && twoLvlDeep(row);
+    return isDatasetName1(row, "Experiments") && onePlusLvlDeep(row);
   }
 
   inline string getMLExperimentId(FileProvenanceRow row) {
