@@ -126,11 +126,11 @@ namespace FileProvenanceConstants {
   }
 
   inline bool isMLFeature(FileProvenanceRow row) {
-    return isDatasetName2(row, "_featurestore.db") && oneLvlDeep(row);
+    return isDatasetName2(row, "featurestore.db") && oneLvlDeep(row);
   }
 
   inline bool partOfMLFeature(FileProvenanceRow row) {
-    return isDatasetName2(row, "_featurestore.db") && onePlusLvlDeep(row);
+    return isDatasetName2(row, "featurestore.db") && onePlusLvlDeep(row);
   }
 
   inline string getMLFeatureId(FileProvenanceRow row) {
@@ -142,11 +142,11 @@ namespace FileProvenanceConstants {
   }
 
   inline bool isMLTDataset(FileProvenanceRow row) {
-    return isDatasetName2(row, "_Training_Datasets") && oneLvlDeep(row);
+    return isDatasetName2(row, "Training_Datasets") && oneLvlDeep(row);
   }
 
   inline bool partOfMLTDataset(FileProvenanceRow row) {
-    return isDatasetName2(row, "_Training_Datasets") && onePlusLvlDeep(row);
+    return isDatasetName2(row, "Training_Datasets") && onePlusLvlDeep(row);
   }
 
   inline string getMLTDatasetId(FileProvenanceRow row) {
