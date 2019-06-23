@@ -324,7 +324,7 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
   LOG_INFO("reading provenance for inode:" << row.mInodeId);
   std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > result;
   if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
-    FPXAttrBufferPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName, row.mLogicalTime);
+    FPXAttrBufferPK xattrBufferKey(row.mInodeId, row.mXAttrName, row.mLogicalTime);
     boost::optional<FPXAttrBufferRow> xAttrBufferVal = mXAttr.get(mNdbConnection, xattrBufferKey);
     
     if(xAttrBufferVal) {

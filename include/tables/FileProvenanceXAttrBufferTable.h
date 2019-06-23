@@ -25,6 +25,7 @@
 #define FILEPROVENANCEXATTRBUFFERTABLE_H
 
 #include "XAttrTable.h"
+#include "../FileProvenanceConstants.h"
 
 struct FPXAttrBufferPK {
   Int64 mInodeId;
@@ -32,9 +33,9 @@ struct FPXAttrBufferPK {
   string mName;
   int mInodeLogicalTime;
 
-  FPXAttrBufferPK(Int64 inodeId, Int8 nameSpace, string name, int inodeLogicalTime) {
+  FPXAttrBufferPK(Int64 inodeId, string name, int inodeLogicalTime) {
     mInodeId = inodeId;
-    mNamespace = nameSpace;
+    mNamespace = FileProvenanceConstants::XATTRS_USER_NAMESPACE;
     mName = name;
     mInodeLogicalTime = inodeLogicalTime;
   }

@@ -27,7 +27,7 @@ namespace FileProvenanceConstants {
   const string XATTRS_ML_ID = "ml_id";
   const string XATTRS_FEATURES = "features";
   const string XATTRS_TRAINING_DATASETS = "training_datasets";
-  const Int8 XATTRS_USER_NAMESPACE = 0;
+  const Int8 XATTRS_USER_NAMESPACE = 5;
   const string README_FILE = "README.md";
   
   const string ML_TYPE_NONE = "NONE";
