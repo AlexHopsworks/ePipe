@@ -29,16 +29,16 @@ namespace FileProvenanceConstants {
   const string XATTRS_TRAINING_DATASETS = "training_datasets";
   const Int8 XATTRS_USER_NAMESPACE = 0;
   
-  const string ML_TYPE_NONE = "none";
-  const string ML_TYPE_ERR = "err";
-  const string ML_TYPE_MODEL = "model";
-  const string ML_TYPE_MODEL_PART = "model_part";
-  const string ML_TYPE_FEATURE = "feature";
-  const string ML_TYPE_FEATURE_PART = "feature_part";
-  const string ML_TYPE_TDATASET = "training_dataset";
-  const string ML_TYPE_TDATASET_PART = "training_dataset_part";
-  const string ML_TYPE_EXPERIMENT = "experiment";
-  const string ML_TYPE_EXPERIMENT_PART = "experiment_part";
+  const string ML_TYPE_NONE = "NONE";
+  const string ML_TYPE_ERR = "ERR";
+  const string ML_TYPE_MODEL = "MODEL";
+  const string ML_TYPE_MODEL_PART = "MODEL_PART";
+  const string ML_TYPE_FEATURE = "FEATURE";
+  const string ML_TYPE_FEATURE_PART = "FEATURE_PART";
+  const string ML_TYPE_TDATASET = "TRAINING_DATASET";
+  const string ML_TYPE_TDATASET_PART = "TRAINING_DATASET_PART";
+  const string ML_TYPE_EXPERIMENT = "EXPERIMENT";
+  const string ML_TYPE_EXPERIMENT_PART = "EXPERIMENT_PART";
 
   const string ML_ID_SPACE = "space_id";
   const string ML_ID_BASE = "id";
