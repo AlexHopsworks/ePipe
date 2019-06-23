@@ -72,6 +72,42 @@ public:
     return out.str();
   }
 
+  static string xattrToState(string id, FileProvenanceRow row, string val) {
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
+
+    rapidjson::Value opVal(rapidjson::kObjectType);
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+
+    op.AddMember("update", opVal, opAlloc);
+
+    rapidjson::Document data;
+    data.SetObject();
+    rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
+
+    rapidjson::Value dataVal(rapidjson::kObjectType);
+
+    rapidjson::Value rname(row.mXAttrName.c_str(), dataAlloc);
+    rapidjson::Value rval(val.c_str(), dataAlloc);
+    dataVal.AddMember(rname, rval, dataAlloc);
+      
+    data.AddMember("doc", dataVal, dataAlloc);
+    data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
+
+    rapidjson::StringBuffer opBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
+    op.Accept(opWriter);
+
+    rapidjson::StringBuffer dataBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
+    data.Accept(dataWriter);
+    
+    stringstream out;
+    out << opBuffer.GetString() << endl << dataBuffer.GetString();
+    return out.str();
+  }
+
   static string deadState(string id) {
 
     rapidjson::Document req;
@@ -290,15 +326,18 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
   if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
     FPXAttrBufferPK xattrBufferKey(row.mInodeId, 0, row.mXAttrName, row.mLogicalTime);
     boost::optional<FPXAttrBufferRow> xAttrBufferVal = mXAttr.get(mNdbConnection, xattrBufferKey);
-    string val;
+    
     if(xAttrBufferVal) {
-      val = ElasticHelper::xattrOp(ElasticHelper::opId(row), row, xAttrBufferVal.get().mValue);
+      string xattrOpVal = ElasticHelper::xattrOp(ElasticHelper::opId(row), row, xAttrBufferVal.get().mValue);
+      result.push_back(boost::make_tuple(xattrOpVal, row.getPK(), xattrBufferKey));
+      string xattrStateVal = ElasticHelper::xattrToState(ElasticHelper::stateId(row), row, xAttrBufferVal.get().mValue);
+      result.push_back(boost::make_tuple(xattrStateVal, boost::none, boost::none));
     } else {
       stringstream cause;
       cause << "no such xattr in buffer: " << row.mXAttrName;
       throw cause.str();
     }
-    result.push_back(boost::make_tuple(val, row.getPK(), xattrBufferKey));
+    
   } else {
     if(row.mOperation == FileProvenanceConstants::H_OP_CREATE) {
       string mlType = FileProvenanceConstants::ML_TYPE_NONE;
