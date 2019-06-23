@@ -316,7 +316,8 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
         LOG_INFO("mlType: feature");
         mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
         mlId = FileProvenanceConstants::getMLFeatureId(row);
-      } else if(FileProvenanceConstants::isMLExperiment(row)) {
+      } else if(!FileProvenanceConstants::isReadmeFile(row) 
+        && FileProvenanceConstants::isMLExperiment(row)) {
         LOG_INFO("mlType: experiment");
         mlType = FileProvenanceConstants::ML_TYPE_EXPERIMENT;
         mlId = FileProvenanceConstants::getMLExperimentId(row);

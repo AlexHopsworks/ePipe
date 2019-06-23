@@ -28,6 +28,7 @@ namespace FileProvenanceConstants {
   const string XATTRS_FEATURES = "features";
   const string XATTRS_TRAINING_DATASETS = "training_datasets";
   const Int8 XATTRS_USER_NAMESPACE = 0;
+  const string README_FILE = "README.md";
   
   const string ML_TYPE_NONE = "NONE";
   const string ML_TYPE_ERR = "ERR";
@@ -107,6 +108,10 @@ namespace FileProvenanceConstants {
     stringstream mlDataset;
     mlDataset << row.mProjectName << "_" << part;
     return row.mDatasetName == mlDataset.str();
+  }
+
+  inline bool isReadmeFile(FileProvenanceRow row) {
+    return row.mInodeName == README_FILE;
   }
 
   inline bool isMLModel(FileProvenanceRow row) {
