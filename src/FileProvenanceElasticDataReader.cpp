@@ -343,19 +343,22 @@ std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optiona
       string mlType = FileProvenanceConstants::ML_TYPE_NONE;
       string mlId = "";
       LOG_INFO("mlType: " << row.to_string());
-      if(FileProvenanceConstants::isMLModel(row)) {
+      if(!FileProvenanceConstants::isReadmeFile(row) 
+        && FileProvenanceConstants::isMLModel(row)) {
         LOG_INFO("mlType: model");
         mlType = FileProvenanceConstants::ML_TYPE_MODEL;
         mlId = FileProvenanceConstants::getMLModelId(row);
         string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlId, mlType);
         result.push_back(boost::make_tuple(state, boost::none, boost::none));
-      } else if(FileProvenanceConstants::isMLTDataset(row)) {
+      } else if(!FileProvenanceConstants::isReadmeFile(row) 
+        && FileProvenanceConstants::isMLTDataset(row)) {
         LOG_INFO("mlType: dataset");
         mlType = FileProvenanceConstants::ML_TYPE_TDATASET;
         mlId = FileProvenanceConstants::getMLTDatasetId(row);
         string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlId, mlType);
         result.push_back(boost::make_tuple(state, boost::none, boost::none));
-      } else if(FileProvenanceConstants::isMLFeature(row)) {
+      } else if(!FileProvenanceConstants::isReadmeFile(row) 
+        && FileProvenanceConstants::isMLFeature(row)) {
         LOG_INFO("mlType: feature");
         mlType = FileProvenanceConstants::ML_TYPE_FEATURE;
         mlId = FileProvenanceConstants::getMLFeatureId(row);
