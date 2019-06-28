@@ -61,7 +61,8 @@ string AppProvenanceElasticDataReader::bulk_add_json(AppProvenanceRow row) {
 
   dataVal.AddMember("app_id",     rapidjson::Value().SetString(row.mId.c_str(), dataAlloc), dataAlloc);
   dataVal.AddMember("app_state",  rapidjson::Value().SetString(row.mState.c_str(), dataAlloc), dataAlloc);
-  dataVal.AddMember("timestamp",  rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+  dataVal.AddMember("timestamp",  rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
+  dataVal.AddMember("readable_timestamp",  rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
   dataVal.AddMember("app_name",   rapidjson::Value().SetString(row.mName.c_str(), dataAlloc), dataAlloc);
   dataVal.AddMember("app_user",   rapidjson::Value().SetString(row.mUser.c_str(), dataAlloc), dataAlloc);
 
