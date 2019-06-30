@@ -20,8 +20,13 @@
  * Author: Alexandru Ormenisan <aaor@kth.se>
  * 
  */
+
 #ifndef FILEPROVENANCECONSTANTS_H
 #define FILEPROVENANCECONSTANTS_H
+
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 namespace FileProvenanceConstants {
   const string XATTRS_ML_ID = "ml_id";
@@ -162,12 +167,20 @@ namespace FileProvenanceConstants {
     return oneNameForPart(row);
   }
 
+  inline bool isMLExperimentName(string name) {
+    vector<string> strs;
+    boost::split(strs,name,boost::is_any_of("_"));
+    return boost::starts_with(name, "application_") && strs.size() == 4;
+  }
+
   inline bool isMLExperiment(FileProvenanceRow row) {
-    return isDatasetName1(row, "Experiments") && oneLvlDeep(row);
+    return isDatasetName1(row, "Experiments") && oneLvlDeep(row) 
+      && isMLExperimentName(row.mInodeName);
   }
 
   inline bool partOfMLExperiment(FileProvenanceRow row) {
-    return isDatasetName1(row, "Experiments") && onePlusLvlDeep(row);
+    return isDatasetName1(row, "Experiments") && onePlusLvlDeep(row) 
+      && isMLExperimentName(row.mParentName);
   }
 
   inline string getMLExperimentId(FileProvenanceRow row) {
