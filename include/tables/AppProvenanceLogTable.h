@@ -114,7 +114,7 @@ struct AppProvenanceRowComparator {
 
 typedef ConcurrentQueue<AppProvenanceRow> AppCPRq;
 typedef boost::heap::priority_queue<AppProvenanceRow, boost::heap::compare<AppProvenanceRowComparator> > AppPRpq;
-typedef vector<AppProvenancePK> AppPKeys;
+typedef vector<boost::optional<AppProvenancePK> > AppPKeys;
 typedef vector<AppProvenanceRow> AppPq;
 
 typedef vector<AppProvenanceRow> AppPv;
@@ -154,13 +154,15 @@ public:
   void removeLogs(Ndb* connection, AppPKeys& pks) {
     start(connection);
     for (AppPKeys::iterator it = pks.begin(); it != pks.end(); ++it) {
-      AppProvenancePK pk = *it;
-      AnyMap a;
-      a[0] = pk.mId;
-      a[1] = pk.mState;
-      a[2] = pk.mTimestamp;
-      doDelete(a);
-      LOG_DEBUG("Delete log row: " + pk.to_string());
+      boost::optional<AppProvenancePK> pk = *it;
+      if(pk) {
+        AnyMap a;
+        a[0] = pk.get().mId;
+        a[1] = pk.get().mState;
+        a[2] = pk.get().mTimestamp;
+        doDelete(a);
+        LOG_DEBUG("Delete log row: " + pk.get().to_string());
+      }
     }
     end();
   }

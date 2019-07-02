@@ -92,7 +92,7 @@ private:
 
   AppProvenanceTableTailer* mAppProvenanceTableTailer;
   AppProvenanceElasticDataReaders* mAppProvenanceElasticDataReaders;
-  RCBatcher<AppProvenanceRow, SConn, AppPKeys>* mAppProvenanceBatcher;
+  RCBatcher<AppProvenanceRow, SConn, AppPBulkKeys>* mAppProvenanceBatcher;
   AppProvenanceElastic* mAppProvenanceElastic;
 
   void setup();

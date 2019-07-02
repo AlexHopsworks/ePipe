@@ -27,6 +27,8 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include "tables/AppProvenanceLogTable.h"
+#include "tables/FileProvenanceLogTable.h"
 
 namespace FileProvenanceConstants {
   const string XATTRS_ML_ID = "ml_id";
@@ -60,6 +62,9 @@ namespace FileProvenanceConstants {
 
   const string H_XATTR_ML_ID = "ml_id";
   const string H_XATTR_ML_DEPS = "ml_deps";
+
+  const string APP_SUBMITTED_STATE = "SUBMITTED";
+  const string APP_RUNNING_STATE = "RUNNING";
 
   inline bool oneLvlDeep(FileProvenanceRow row) {
     return row.mDatasetId != row.mInodeId && row.mDatasetId == row.mParentId;

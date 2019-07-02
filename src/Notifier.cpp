@@ -219,7 +219,7 @@ void Notifier::setup() {
     }
     mAppProvenanceElasticDataReaders = new AppProvenanceElasticDataReaders(elastic_app_provenance_connections, 
       mElasticProvenanceTU.mNumReaders, mHopsworksEnabled, mAppProvenanceElastic);
-    mAppProvenanceBatcher = new RCBatcher<AppProvenanceRow, SConn, AppPKeys>(
+    mAppProvenanceBatcher = new RCBatcher<AppProvenanceRow, SConn, AppPBulkKeys>(
       mAppProvenanceTableTailer, mAppProvenanceElasticDataReaders,
       mElasticProvenanceTU.mWaitTime, mElasticProvenanceTU.mBatchSize);
   }

@@ -39,9 +39,13 @@ namespace bc = boost::accumulators;
 
 typedef bc::accumulator_set<double, bc::stats<bc::tag::mean, bc::tag::min, bc::tag::max> > Accumulator;
 
-typedef Bulk<AppPKeys> AppPBulk;
+struct AppPBulkKeys {
+  AppPKeys mAppProvLogKs;
+};
 
-class AppProvenanceElastic : public ElasticSearchBase<AppPKeys> {
+typedef Bulk<AppPBulkKeys> AppPBulk;
+
+class AppProvenanceElastic : public ElasticSearchBase<AppPBulkKeys> {
 public:
   AppProvenanceElastic(string elastic_addr, string index,
           int time_to_wait_before_inserting, int bulk_size,

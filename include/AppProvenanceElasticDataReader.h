@@ -29,21 +29,21 @@
 #include "boost/optional.hpp"
 #include "boost/date_time.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "FileProvenanceConstants.h"
+#include "AppProvenanceElastic.h"
 
-class AppProvenanceElasticDataReader : public NdbDataReader<AppProvenanceRow, SConn, AppPKeys> {
+class AppProvenanceElasticDataReader : public NdbDataReader<AppProvenanceRow, SConn, AppPBulkKeys> {
 public:
   AppProvenanceElasticDataReader(SConn connection, const bool hopsworks);
   virtual ~AppProvenanceElasticDataReader();
 private:
-  void processAddedandDeleted(AppPq* data_batch, Bulk<AppPKeys>& bulk);
-  string bulk_add_json(AppProvenanceRow row);
-  string readable_timestamp(Int64 timestamp);
+  void processAddedandDeleted(AppPq* data_batch, Bulk<AppPBulkKeys>& bulk);
 };
 
-class AppProvenanceElasticDataReaders :  public NdbDataReaders<AppProvenanceRow, SConn, AppPKeys>{
+class AppProvenanceElasticDataReaders :  public NdbDataReaders<AppProvenanceRow, SConn, AppPBulkKeys>{
   public:
     AppProvenanceElasticDataReaders(SConn* connections, int num_readers,const bool hopsworks,
-          TimedRestBatcher<AppPKeys>* restEndpoint) : 
+          TimedRestBatcher<AppPBulkKeys>* restEndpoint) : 
     NdbDataReaders(restEndpoint){
       for(int i=0; i<num_readers; i++){
         AppProvenanceElasticDataReader* dr = new AppProvenanceElasticDataReader(connections[i], hopsworks);

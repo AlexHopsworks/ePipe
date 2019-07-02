@@ -41,18 +41,19 @@ mTotalNumOfBulksProcessed(0), mIsFirstEventArrived(false) {
 }
 
 void AppProvenanceElastic::process(vector<AppPBulk>* bulks) {
-  AppPKeys keys;
+  AppPKeys mAppProvLogKs;
+
   string batch;
   for (vector<AppPBulk>::iterator it = bulks->begin(); it != bulks->end(); ++it) {
     AppPBulk bulk = *it;
     batch.append(bulk.mJSON);
-    keys.insert(keys.end(), bulk.mPKs.begin(), bulk.mPKs.end());
+    mAppProvLogKs.insert(mAppProvLogKs.end(), bulk.mPKs.mAppProvLogKs.begin(), bulk.mPKs.mAppProvLogKs.end());
   }
 
   //TODO: handle failures
   if (httpRequest(HTTP_POST, mElasticBulkAddr, batch)) {
-    if (!keys.empty()) {
-      AppProvenanceLogTable().removeLogs(sConn, keys);
+    if (!mAppProvLogKs.empty()) {
+      AppProvenanceLogTable().removeLogs(sConn, mAppProvLogKs);
     }
   }
 
