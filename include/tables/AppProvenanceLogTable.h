@@ -51,6 +51,9 @@ struct AppProvenanceRow {
   Int64 mTimestamp;
   string mName;
   string mUser;
+  Int64 mSubmitTime;
+  Int64 mStartTime;
+  Int64 mFinishTime;
 
   ptime mEventCreationTime;
 
@@ -66,6 +69,9 @@ struct AppProvenanceRow {
     stream << "Timestamp = " << mTimestamp << endl;
     stream << "Name = " << mName << endl;
     stream << "User = " << mUser << endl;
+    stream << "SubmitTime = " << mSubmitTime << endl;
+    stream << "StartTime = " << mStartTime << endl;
+    stream << "FinishTime = " << mFinishTime << endl;
     stream << "-------------------------" << endl;
     return stream.str();
   }
@@ -124,6 +130,9 @@ public:
     addColumn("timestamp");  
     addColumn("name");
     addColumn("user");
+    addColumn("submit_time");
+    addColumn("start_time");
+    addColumn("finish_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
   }
 
@@ -135,6 +144,10 @@ public:
     row.mTimestamp = value[2]->int64_value();
     row.mName = get_string(value[3]);
     row.mUser = get_string(value[4]);
+    row.mSubmitTime = value[5]->int64_value();
+    row.mStartTime = value[6]->int64_value();
+    row.mFinishTime = value[7]->int64_value();
+
     return row;
   }
 
