@@ -323,21 +323,22 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bul
 std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
   LOG_INFO("reading provenance for inode:" << row.mInodeId);
   std::list<boost::tuple<string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > result;
-  if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD) {
+  if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD 
+    || row.mOperation == FileProvenanceConstants::H_OP_XATTR_UPDATE
+    || row.mOperation == FileProvenanceConstants::H_OP_XATTR_DELETE) {
     FPXAttrBufferPK xattrBufferKey(row.mInodeId, row.mXAttrName, row.mLogicalTime);
     boost::optional<FPXAttrBufferRow> xAttrBufferVal = mXAttr.get(mNdbConnection, xattrBufferKey);
     
     if(xAttrBufferVal) {
       string xattrOpVal = ElasticHelper::xattrOp(ElasticHelper::opId(row), row, xAttrBufferVal.get().mValue);
-      result.push_back(boost::make_tuple(xattrOpVal, row.getPK(), xattrBufferKey));
+      result.push_back(boost::make_tuple(xattrOpVal, boost::none, boost::none));
       string xattrStateVal = ElasticHelper::xattrToState(ElasticHelper::stateId(row), row, xAttrBufferVal.get().mValue);
-      result.push_back(boost::make_tuple(xattrStateVal, boost::none, boost::none));
+      result.push_back(boost::make_tuple(xattrStateVal, row.getPK(), xattrBufferKey));
     } else {
       stringstream cause;
       cause << "no such xattr in buffer: " << row.mXAttrName;
       throw cause.str();
-    }
-    
+    }   
   } else {
     if(row.mOperation == FileProvenanceConstants::H_OP_CREATE) {
       string mlType = FileProvenanceConstants::ML_TYPE_NONE;

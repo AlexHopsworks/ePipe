@@ -58,6 +58,8 @@ namespace FileProvenanceConstants {
   const string H_OP_MODIFY_DATA = "MODIFY_DATA";
   const string H_OP_METADATA = "METADATA";
   const string H_OP_XATTR_ADD = "XATTR_ADD";
+  const string H_OP_XATTR_UPDATE = "XATTR_UPDATE";
+  const string H_OP_XATTR_DELETE = "XATTR_DELETE";
   const string H_OP_OTHER = "OTHER";
 
   const string H_XATTR_ML_ID = "ml_id";
