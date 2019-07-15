@@ -91,10 +91,21 @@ public:
 
     rapidjson::Value dataVal(rapidjson::kObjectType);
 
-    rapidjson::Value rname(row.mXAttrName.c_str(), dataAlloc);
-    rapidjson::Value rval(val.c_str(), dataAlloc);
-    dataVal.AddMember(rname, rval, dataAlloc);
-      
+    rapidjson::Value xattrKey(row.mXAttrName.c_str(), dataAlloc);
+    rapidjson::Value xattr(rapidjson::kObjectType);
+    rapidjson::Value xAttrAux1(val.c_str(), dataAlloc);
+    xattr.AddMember("raw", xAttrAux1, dataAlloc);
+
+    rapidjson::Document xattrJson(&data.GetAllocator()); 
+    if(!xattrJson.Parse(val.c_str()).HasParseError()) {     
+      rapidjson::Value xattrAux2(rapidjson::kObjectType);
+      for (rapidjson::Document::MemberIterator itr = xattrJson.MemberBegin(); itr != xattrJson.MemberEnd(); ++itr) {
+        xattrAux2.AddMember(itr->name, itr->value, dataAlloc);
+      }
+      xattr.AddMember("value", xattrAux2, dataAlloc);
+    }
+    dataVal.AddMember(xattrKey, xattr, dataAlloc);
+
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
 
@@ -238,9 +249,21 @@ public:
     dataVal.AddMember("io_logical_time",  rapidjson::Value().SetInt(row.mLogicalTime), dataAlloc);
     dataVal.AddMember("io_timestamp",     rapidjson::Value().SetInt64(row.mTimestamp), dataAlloc);
     dataVal.AddMember("i_readable_t",     rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-    rapidjson::Value rname(row.mXAttrName.c_str(), dataAlloc);
-    rapidjson::Value rval(val.c_str(), dataAlloc);
-    dataVal.AddMember(rname, rval, dataAlloc);
+    
+    rapidjson::Value xattrKey(row.mXAttrName.c_str(), dataAlloc);
+    rapidjson::Value xattr(rapidjson::kObjectType);
+    rapidjson::Value xAttrAux1(val.c_str(), dataAlloc);
+    xattr.AddMember("raw", xAttrAux1, dataAlloc);
+
+    rapidjson::Document xattrJson(&data.GetAllocator()); 
+    if(!xattrJson.Parse(val.c_str()).HasParseError()) {     
+      rapidjson::Value xattrAux2(rapidjson::kObjectType);
+      for (rapidjson::Document::MemberIterator itr = xattrJson.MemberBegin(); itr != xattrJson.MemberEnd(); ++itr) {
+        xattrAux2.AddMember(itr->name, itr->value, dataAlloc);
+      }
+      xattr.AddMember("value", xattrAux2, dataAlloc);
+    }
+    dataVal.AddMember(xattrKey, xattr, dataAlloc);
       
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
