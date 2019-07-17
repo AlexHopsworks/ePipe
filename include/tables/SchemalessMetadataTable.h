@@ -28,6 +28,7 @@
 #include "MetadataLogTable.h"
 
 #define EMPTY_DOC "{\"doc\" : {\"" XATTR_FIELD_NAME "\" : {} }, \"doc_as_upsert\" : true}"
+#define EMPTY_DOC_ARRAY "{\"doc\" : {\"" XATTR_FIELD_NAME "\" : [] }, \"doc_as_upsert\" : true}"
 #define REMOVE_DOC_SCRIPT "{\"script\" :\"ctx._source.remove(\\\"" XATTR_FIELD_NAME "\\\")\"}"
 
 struct SchemalessMetadataEntry {
@@ -97,11 +98,17 @@ struct SchemalessMetadataEntry {
   string upsertMetadata(string jsonData) {
     rapidjson::StringBuffer sbDoc;
     rapidjson::Writer<rapidjson::StringBuffer> docWriter(sbDoc);
+    
     rapidjson::Document doc;
     doc.Parse(EMPTY_DOC);
     rapidjson::Document xattr(&doc.GetAllocator());
     if (!xattr.Parse(jsonData.c_str()).HasParseError()) {
-      mergeDoc(doc, xattr);
+      if(xattr.IsArray()) {
+        doc.Parse(EMPTY_DOC_ARRAY);
+        mergeArrayDoc(doc, xattr);
+      } else {
+        mergeDoc(doc, xattr);
+      }
     } else {
       LOG_ERROR("JSON Parsing error: " << jsonData);
     }
@@ -112,6 +119,12 @@ struct SchemalessMetadataEntry {
   void mergeDoc(rapidjson::Document& target, rapidjson::Document& source) {
     for (rapidjson::Document::MemberIterator itr = source.MemberBegin(); itr != source.MemberEnd(); ++itr) {
       target["doc"][XATTR_FIELD_NAME].AddMember(itr->name, itr->value, target.GetAllocator());
+    }
+  }
+
+  void mergeArrayDoc(rapidjson::Document& target, rapidjson::Document& source) {
+    for (rapidjson::Document::ValueIterator itr = source.Begin(); itr != source.End(); ++itr) {
+      target["doc"][XATTR_FIELD_NAME].PushBack(*itr, target.GetAllocator());
     }
   }
 

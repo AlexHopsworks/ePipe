@@ -256,12 +256,20 @@ public:
     xattr.AddMember("raw", xAttrAux1, dataAlloc);
 
     rapidjson::Document xattrJson(&data.GetAllocator()); 
-    if(!xattrJson.Parse(val.c_str()).HasParseError()) {     
-      rapidjson::Value xattrAux2(rapidjson::kObjectType);
-      for (rapidjson::Document::MemberIterator itr = xattrJson.MemberBegin(); itr != xattrJson.MemberEnd(); ++itr) {
-        xattrAux2.AddMember(itr->name, itr->value, dataAlloc);
+    if(!xattrJson.Parse(val.c_str()).HasParseError()) {
+      if(xattrJson.IsArray()) {
+        rapidjson::Value xattrAux2(rapidjson::kArrayType);
+        for (rapidjson::Document::ValueIterator itr = xattrJson.Begin(); itr != xattrJson.End(); ++itr) {
+          xattrAux2.PushBack(*itr, dataAlloc);
+        }
+        xattr.AddMember("value", xattrAux2, dataAlloc);
+      } else {  
+        rapidjson::Value xattrAux2(rapidjson::kObjectType);
+        for (rapidjson::Document::MemberIterator itr = xattrJson.MemberBegin(); itr != xattrJson.MemberEnd(); ++itr) {
+          xattrAux2.AddMember(itr->name, itr->value, dataAlloc);
+        }
+        xattr.AddMember("value", xattrAux2, dataAlloc);
       }
-      xattr.AddMember("value", xattrAux2, dataAlloc);
     }
     dataVal.AddMember(xattrKey, xattr, dataAlloc);
       
