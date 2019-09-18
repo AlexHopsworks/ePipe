@@ -89,7 +89,7 @@ protected:
   const NdbDictionary::Index* getIndex(const NdbDictionary::Dictionary* database, const std::string& index_name) {
     const NdbDictionary::Index* index = database->getIndex(index_name.c_str(), getName().c_str());
     if (!index) {
-      LOG_ERROR("index:" << index_name << " error")
+      LOG_ERROR("index:" << index_name << " error");
       LOG_NDB_API_ERROR(database->getNdbError());
     }
     return index;
