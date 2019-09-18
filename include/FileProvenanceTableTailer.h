@@ -14,30 +14,29 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "ProvenanceDataReader.h"
+#ifndef FILEPROVENANCETABLETAILER_H
+#define FILEPROVENANCETABLETAILER_H
 
-ProvenanceDataReader::ProvenanceDataReader(SConn connection, const bool hopsworks)
-: NdbDataReader(connection, hopsworks) {
-}
+#include "RCTableTailer.h"
+#include "tables/FileProvenanceLogTable.h"
 
-void ProvenanceDataReader::processAddedandDeleted(Pq* data_batch, PBulk& bulk) {
-  std::vector<ptime> arrivalTimes(data_batch->size());
-  std::stringstream out;
-  int i = 0;
-  for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it, i++) {
-    ProvenanceRow row = *it;
-    arrivalTimes[i] = row.mEventCreationTime;
-    ProvenancePK rowPK = row.getPK();
-    bulk.mPKs.push_back(rowPK);
+class FileProvenanceTableTailer : public RCTableTailer<FileProvenanceRow> {
+public:
+  FileProvenanceTableTailer(Ndb* ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier);
+  FileProvenanceRow consume();
+  virtual ~FileProvenanceTableTailer();
 
-    out << row.to_create_json() << std::endl;
-  }
+private:
+  virtual void handleEvent(NdbDictionary::Event::TableEvent eventType, FileProvenanceRow pre, FileProvenanceRow row);
+  void barrierChanged();
 
-  bulk.mArrivalTimes = arrivalTimes;
-  bulk.mJSON = out.str();
-}
+  void pushToQueue(PRpq* curr);
 
-ProvenanceDataReader::~ProvenanceDataReader() {
-  
-}
+  CPRq *mQueue;
+  PRpq* mCurrentPriorityQueue;
+  boost::mutex mLock;
 
+};
+
+
+#endif //FILEPROVENANCETABLETAILER_H
