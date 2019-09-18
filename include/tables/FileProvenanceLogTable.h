@@ -178,7 +178,6 @@ public:
     addColumn("io_timestamp_batch");
     addColumn("inode_path");
 
-    addRecoveryIndex("logical_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
   }
 
