@@ -42,7 +42,8 @@ int main(int argc, char** argv) {
     int elastic_batch_size = 5000;
     int elastic_issue_time = 5000;
 
-    std::string elastic_provenance_index = "provenance";
+    std::string elastic_file_provenance_index = "fileprovenance";
+    std::string elastic_app_provenance_index = "appprovenance";
 
     int lru_cap = DEFAULT_MAX_CAPACITY;
     bool recovery = true;
@@ -102,10 +103,8 @@ int main(int argc, char** argv) {
         ("index",
          po::value<std::string>(&elastic_index)->default_value(elastic_index),
          "Elastic index to add the data to.")
-        ("provenance_index",
-         po::value<std::string>(&elastic_provenance_index)->default_value(
-             elastic_provenance_index),
-         "Elastic index to add the provenance data to.")
+        ("file_provenance_index", po::value<std::string>(&elastic_file_provenance_index)->default_value(elastic_file_provenance_index), "Elastic index to add the file provenance data to.")
+        ("app_provenance_index", po::value<std::string>(&elastic_app_provenance_index)->default_value(elastic_app_provenance_index), "Elastic index to add the app provenance data to.")
         ("elastic_batch",
          po::value<int>(&elastic_batch_size)->default_value(elastic_batch_size),
          "Elastic batch size in bytes for bulk requests")
@@ -200,7 +199,8 @@ int main(int argc, char** argv) {
                                        provenance_tu,
                                        poll_maxTimeToWait, elastic_addr,
                                        hopsworks, elastic_index,
-                                       elastic_provenance_index,
+                                       elastic_file_provenance_index,
+                                       elastic_app_provenance_index,
                                        elastic_batch_size, elastic_issue_time,
                                        lru_cap, recovery, stats, barrier,
                                        hiveCleaner,

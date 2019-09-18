@@ -115,9 +115,9 @@ private:
     rmout << "} else{ ctx.op=\"noop\";}";
     rmout << "} else{ ctx.op=\"noop\";}";
     opWriter.String(rmout.str().c_str());
-
     opWriter.EndObject();
 
+    LOG_INFO("script:" << sbOp.GetString());
     return std::string(sbOp.GetString());
 
   }
