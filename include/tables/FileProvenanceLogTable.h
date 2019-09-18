@@ -72,6 +72,7 @@ struct FileProvenanceRow {
   int mLogicalTimeBatch;
   Int64 mTimestampBatch;
   std::string mInodePath;
+  int mDatasetLogicalTime;
   
   ptime mEventCreationTime;
 
@@ -104,6 +105,7 @@ struct FileProvenanceRow {
     stream << "LogicalTimeBatch = " << mLogicalTimeBatch << std::endl;
     stream << "TimestampBatch = " << mTimestampBatch << std::endl;
     stream << "InodePath = " << mInodePath << std::endl;
+    stream << "DatasetLogicalTime = " << mDatasetLogicalTime << std::endl;
     stream << "-------------------------" << std::endl;
     return stream.str();
   }
@@ -177,7 +179,7 @@ public:
     addColumn("io_logical_time_batch");
     addColumn("io_timestamp_batch");
     addColumn("inode_path");
-
+    addColumn("ds_logical_time")
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
   }
 
@@ -206,7 +208,7 @@ public:
     row.mLogicalTimeBatch = value[18]->int32_value();
     row.mTimestampBatch = value[19]->int64_value();
     row.mInodePath = get_string(value[20]);
-    
+    row.mDatasetLogicalTime = value[21]->int32_value();
     LOG_DEBUG("Got file provenance row: ");
     return row;
   }
@@ -231,9 +233,6 @@ public:
     }
     end();
   }
-
 };
-
-
 #endif /* FILEPROVENANCELOGTABLE_H */
 

@@ -22,6 +22,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include "tables/AppProvenanceLogTable.h"
 #include "tables/FileProvenanceLogTable.h"
+#include "tables/XAttrTable.h"
 
 namespace FileProvenanceConstants {
   const std::string XATTRS_ML_ID = "ml_id";
@@ -41,7 +42,7 @@ namespace FileProvenanceConstants {
   const std::string ML_TYPE_EXPERIMENT = "EXPERIMENT";
   const std::string ML_TYPE_EXPERIMENT_PART = "EXPERIMENT_PART";
 
-   enum MLType {
+  enum MLType {
     NONE,
     MODEL,
     FEATURE,
@@ -52,6 +53,11 @@ namespace FileProvenanceConstants {
     FEATURE_PART,
     TRAINING_DATASET_PART,
     EXPERIMENT_PART
+  };
+
+  enum ProvOpStoreType {
+    STORE_NONE,
+    STORE_FULL
   };
 
   inline static const std::string MLTypeToStr(MLType mlType) {
@@ -229,7 +235,6 @@ namespace FileProvenanceConstants {
     return oneNameForPart(row);
   }
 
-
   inline std::pair <MLType, std::string> parseML(FileProvenanceRow row) {
     MLType mlType;
     std::string mlId;
@@ -265,6 +270,10 @@ namespace FileProvenanceConstants {
       mlId = "";
     }
     return std::make_pair(mlType, mlId);
+  }
+
+  inline ProvOpStoreType provType(std::string dsProvType) {
+
   }
 }
 

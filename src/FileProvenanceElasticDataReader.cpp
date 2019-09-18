@@ -286,8 +286,6 @@ public:
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
      
     rapidjson::Value xattr(rapidjson::kObjectType);
-    // rapidjson::Value xAttrAux1(val.c_str(), dataAlloc);
-    // xattr.AddMember("raw", xAttrAux1, dataAlloc);
     xattr.AddMember("raw", rapidjson::Value().SetString(val.c_str(), dataAlloc), dataAlloc);
     rapidjson::Document xattrJson(&data.GetAllocator());
     if(!xattrJson.Parse(val.c_str()).HasParseError()) {     
@@ -407,6 +405,33 @@ private:
   SConn mConn;
 };
 
+class XAttrReader {
+public:
+  XAttrReader(SConn conn) : mConn(conn) {
+  }
+
+  boost::optional<std::string> getXAttr(FPXAttrBufferPK xattrBufferKey) {
+    XAttrPK xattrKey(xattrBufferKey.mInodeId, xattrBufferKey.mNamespace, xattrBufferKey.mName);
+    //it is important to get them in this order - possible concurrent issue when the value you want might be updated while this is ongoing
+    //possible issue readLog(V), readXBuffer(V), updateX(V-V'), readX(you read V' and V is in buffer now)
+    boost::optional<XAttrRow> xattr = mXAttr.get(mConn, xattrKey);
+    boost::optional<FPXAttrBufferRow> xattrBuffer = mXAttrBuffer.get(mConn, xattrBufferKey);
+    if(xattrBuffer) {
+      return xattrBuffer.get().mValue;
+    }
+    if(xattr) {
+      return xattr.get().mValue;
+    }
+    LOG_WARN("no xattr for key:" << xattrBufferKey.to_string());
+    return boost::none;
+  }
+  
+private:
+  XAttrTable mXAttr;
+  FileProvenanceXAttrBufferTable mXAttrBuffer;
+  SConn mConn;
+};
+
 void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bulk<ProvKeys>& bulk) {
   std::vector <ptime> arrivalTimes(data_batch->size());
   std::stringstream out;
@@ -428,9 +453,11 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bul
 }
 
 std::list<boost::tuple<std::string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
-  LOG_INFO("reading provenance for inode:" << row.mInodeId);
+  LOG_DEBUG("reading provenance for inode:" << row.mInodeId);
   std::list<boost::tuple<std::string, boost::optional<FileProvenancePK>, boost::optional<FPXAttrBufferPK> > > result;
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
+
+  boost::optional<std::string>
   if(row.mOperation == FileProvenanceConstants::H_OP_XATTR_ADD 
     || row.mOperation == FileProvenanceConstants::H_OP_XATTR_UPDATE) {
     FPXAttrBufferPK xattrBufferKey(row.mInodeId, row.mXAttrName, row.mLogicalTime);
