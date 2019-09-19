@@ -20,11 +20,13 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/assign.hpp>
 #include "tables/AppProvenanceLogTable.h"
 #include "tables/FileProvenanceLogTable.h"
 #include "tables/XAttrTable.h"
 
 namespace FileProvenanceConstants {
+
   const std::string XATTRS_ML_ID = "ml_id";
   const std::string XATTRS_FEATURES = "features";
   const std::string XATTRS_TRAINING_DATASETS = "training_datasets";
@@ -32,6 +34,7 @@ namespace FileProvenanceConstants {
   const std::string README_FILE = "README.md";
   
   const std::string ML_TYPE_NONE = "NONE";
+  const std::string TYPE_DATASET = "DATASET";
   const std::string ML_TYPE_ERR = "ERR";
   const std::string ML_TYPE_MODEL = "MODEL";
   const std::string ML_TYPE_MODEL_PART = "MODEL_PART";
@@ -42,8 +45,14 @@ namespace FileProvenanceConstants {
   const std::string ML_TYPE_EXPERIMENT = "EXPERIMENT";
   const std::string ML_TYPE_EXPERIMENT_PART = "EXPERIMENT_PART";
 
+  const std::string PROV_TYPE = "prov_type";
+  const std::string PROV_TYPE_STORE_NONE = "NONE";
+  const std::string PROV_TYPE_STORE_STATE = "STATE";
+  const std::string PROV_TYPE_STORE_ALL = "ALL";
   enum MLType {
     NONE,
+    DATASET,
+
     MODEL,
     FEATURE,
     TRAINING_DATASET,
@@ -57,13 +66,16 @@ namespace FileProvenanceConstants {
 
   enum ProvOpStoreType {
     STORE_NONE,
-    STORE_FULL
+    STORE_STATE,
+    STORE_ALL
   };
 
   inline static const std::string MLTypeToStr(MLType mlType) {
     switch (mlType) {
       case NONE:
         return ML_TYPE_NONE;
+      case DATASET:
+        return TYPE_DATASET;
       case MODEL:
         return ML_TYPE_MODEL;
       case FEATURE:
@@ -85,10 +97,6 @@ namespace FileProvenanceConstants {
     }
   };
 
-  const std::string ML_ID_SPACE = "space_id";
-  const std::string ML_ID_BASE = "id";
-  const std::string ML_ID_VERSION = "version";
-
   const std::string H_OP_CREATE = "CREATE";
   const std::string H_OP_DELETE = "DELETE";
   const std::string H_OP_ACCESS_DATA = "ACCESS_DATA";
@@ -99,9 +107,40 @@ namespace FileProvenanceConstants {
   const std::string H_OP_XATTR_DELETE = "XATTR_DELETE";
   const std::string H_OP_OTHER = "OTHER";
 
-  const std::string H_XATTR_ML_ID = "ml_id";
-  const std::string H_XATTR_ML_DEPS = "ml_deps";
+  const std::string ELASTIC_NOP = "\n";
 
+  enum Operation {
+    OP_CREATE,
+    OP_DELETE,
+    OP_ACCESS_DATA,
+    OP_MODIFY_DATA,
+    OP_XATTR_ADD,
+    OP_XATTR_UPDATE,
+    OP_XATTR_DELETE,
+    OP_METADATA,
+    OP_OTHER
+  };
+
+  const boost::unordered_map<std::string, Operation> ops = boost::assign::map_list_of
+      (H_OP_CREATE, OP_CREATE)
+      (H_OP_DELETE, OP_DELETE)
+      (H_OP_ACCESS_DATA, OP_ACCESS_DATA)
+      (H_OP_MODIFY_DATA, OP_MODIFY_DATA)
+      (H_OP_XATTR_ADD, OP_XATTR_ADD)
+      (H_OP_XATTR_UPDATE, OP_XATTR_UPDATE)
+      (H_OP_XATTR_DELETE, OP_XATTR_DELETE)
+      (H_OP_METADATA, OP_METADATA)
+      (H_OP_OTHER, OP_OTHER);
+
+  inline Operation findOp(FileProvenanceRow row) {
+    if(ops.find(row.mOperation) == ops.end()) {
+      LOG_WARN("no such operation:" << row.mOperation);
+      std::stringstream cause;
+      cause << "no such operation:" << row.mOperation;
+      throw cause.str();
+    }
+    return ops.at(row.mOperation);
+  }
   const std::string APP_SUBMITTED_STATE = "SUBMITTED";
   const std::string APP_RUNNING_STATE = "RUNNING";
 
@@ -147,6 +186,9 @@ namespace FileProvenanceConstants {
     return mlId.str();
   }
 
+  inline bool isDataset(FileProvenanceRow row) {
+    return row.mDatasetId == row.mInodeId;
+  }
   inline bool isDatasetName1(FileProvenanceRow row, std::string part) {
     std::stringstream  mlDataset;
     mlDataset << part;
@@ -241,6 +283,9 @@ namespace FileProvenanceConstants {
     if(isReadmeFile(row)) {
       mlType = MLType::NONE;
       mlId = "";
+    } else if(isDataset(row)) {
+      mlType = MLType::DATASET;
+      mlId = "";
     } else if(isMLModel(row)) {
       mlType = MLType::MODEL;
       mlId = getMLModelId(row);
@@ -273,8 +318,44 @@ namespace FileProvenanceConstants {
   }
 
   inline ProvOpStoreType provType(std::string dsProvType) {
-
+    rapidjson::Document provTypeDoc;
+    if(provTypeDoc.Parse(dsProvType.c_str()).HasParseError()) {
+      LOG_WARN("prov type could not be parsed:" << dsProvType);
+      std::stringstream cause;
+      cause << "prov type could not be parsed:" << dsProvType;
+      throw cause.str();
+    } else {
+      std::string provType = provTypeDoc["op_store"].GetString();
+      boost::to_upper(provType);
+      if(provType == PROV_TYPE_STORE_STATE) {
+        return ProvOpStoreType::STORE_STATE;
+      } else if(provType == PROV_TYPE_STORE_ALL) {
+        return ProvOpStoreType::STORE_ALL;
+      } else if(provType == PROV_TYPE_STORE_NONE) {
+        return ProvOpStoreType::STORE_NONE;
+      } else {
+        LOG_WARN("prov type not recognized:" << provType);
+        std::stringstream cause;
+        cause << "prov type not recognized:" << provType;
+        throw cause.str();
+      }
+    }
   }
+
+  inline static const std::string provOpStoreTypeToStr(ProvOpStoreType type) {
+    switch(type) {
+      case STORE_NONE: return PROV_TYPE_STORE_NONE;
+      case STORE_STATE: return PROV_TYPE_STORE_STATE;
+      case STORE_ALL: return PROV_TYPE_STORE_ALL;
+      default : {
+        LOG_ERROR("ProvOpStoreType to string - enum not handled");
+        std::stringstream cause;
+        cause << "ProvOpStoreType to string - enum not handled";
+        throw cause.str();
+      }
+    }
+  }
+
 }
 
 #endif /* FILEPROVENANCECONSTANTS_H */

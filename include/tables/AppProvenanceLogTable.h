@@ -160,6 +160,9 @@ public:
     end();
   }
 
+  std::string getPKStr(AppProvenanceRow row) {
+    return row.getPK().to_string();
+  }
 };
 
 

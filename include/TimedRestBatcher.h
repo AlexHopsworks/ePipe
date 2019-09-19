@@ -100,7 +100,9 @@ void TimedRestBatcher<Keys>::run() {
     mToProcessLength += msg.mJSON.length();
     mLock.unlock();
 
+    LOG_DEBUG("Process Bulk1 - " << mToProcessLength << "," << mBatchSize <<"," << mTimerProcessing);
     if (mToProcessLength >= mBatchSize && !mTimerProcessing) {
+      LOG_DEBUG("Process Bulk2");
       processBatch();
     }
   }

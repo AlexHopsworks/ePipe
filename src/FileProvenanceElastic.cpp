@@ -35,22 +35,33 @@ void FileProvenanceElastic::process(std::vector<PBulk>* bulks) {
     fileProvLogKeys.insert(fileProvLogKeys.end(), bulk.mPKs.mFileProvLogKs.begin(), bulk.mPKs.mFileProvLogKs.end());
     xAttrBufferKeys.insert(xAttrBufferKeys.end(), bulk.mPKs.mXAttrBufferKs.begin(), bulk.mPKs.mXAttrBufferKs.end());
   }
-  //TODO: handle failures
-  if (httpPostRequest(mElasticBulkAddr, batch)) {
+  if(batch == FileProvenanceConstants::ELASTIC_NOP) {
     if (!fileProvLogKeys.empty()) {
       FileProvenanceLogTable().removeLogs(sConn, fileProvLogKeys);
     }
     if (!xAttrBufferKeys.empty()) {
       FileProvenanceXAttrBufferTable().cleanBuffer(sConn, xAttrBufferKeys);
     }
-    if (mStats) {
-      stats(bulks);
-    }
-  }else{
-    LOG_ERROR("elastic error");
-    if(mStats){
-      mCounters.check();
-      mCounters.elasticSearchRequestFailed();
+  } else {
+    LOG_DEBUG("batch:" << batch);
+    //TODO: handle failures
+    if (httpPostRequest(mElasticBulkAddr, batch)) {
+      LOG_DEBUG("batch:" << batch);
+      if (!fileProvLogKeys.empty()) {
+        FileProvenanceLogTable().removeLogs(sConn, fileProvLogKeys);
+      }
+      if (!xAttrBufferKeys.empty()) {
+        FileProvenanceXAttrBufferTable().cleanBuffer(sConn, xAttrBufferKeys);
+      }
+      if (mStats) {
+        stats(bulks);
+      }
+    } else {
+      LOG_ERROR("elastic error");
+      if (mStats) {
+        mCounters.check();
+        mCounters.elasticSearchRequestFailed();
+      }
     }
   }
 }

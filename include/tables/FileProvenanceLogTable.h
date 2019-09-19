@@ -71,7 +71,6 @@ struct FileProvenanceRow {
   std::string mXAttrName;
   int mLogicalTimeBatch;
   Int64 mTimestampBatch;
-  std::string mInodePath;
   int mDatasetLogicalTime;
   
   ptime mEventCreationTime;
@@ -104,7 +103,6 @@ struct FileProvenanceRow {
     stream << "XAttrName = " << mXAttrName << std::endl;
     stream << "LogicalTimeBatch = " << mLogicalTimeBatch << std::endl;
     stream << "TimestampBatch = " << mTimestampBatch << std::endl;
-    stream << "InodePath = " << mInodePath << std::endl;
     stream << "DatasetLogicalTime = " << mDatasetLogicalTime << std::endl;
     stream << "-------------------------" << std::endl;
     return stream.str();
@@ -178,13 +176,11 @@ public:
     addColumn("i_xattr_name");
     addColumn("io_logical_time_batch");
     addColumn("io_timestamp_batch");
-    addColumn("inode_path");
-    addColumn("ds_logical_time")
+    addColumn("ds_logical_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
   }
 
   FileProvenanceRow getRow(NdbRecAttr* value[]) {
-    LOG_DEBUG("Get file provenance row: ");
     FileProvenanceRow row;
     row.mEventCreationTime = Utils::getCurrentTime();
     row.mInodeId = value[0]->int64_value();
@@ -207,9 +203,7 @@ public:
     row.mXAttrName = get_string(value[17]);
     row.mLogicalTimeBatch = value[18]->int32_value();
     row.mTimestampBatch = value[19]->int64_value();
-    row.mInodePath = get_string(value[20]);
-    row.mDatasetLogicalTime = value[21]->int32_value();
-    LOG_DEBUG("Got file provenance row: ");
+    row.mDatasetLogicalTime = value[20]->int32_value();
     return row;
   }
 
@@ -232,6 +226,10 @@ public:
       }
     }
     end();
+  }
+
+  std::string getPKStr(FileProvenanceRow row) {
+    return row.getPK().to_string();
   }
 };
 #endif /* FILEPROVENANCELOGTABLE_H */

@@ -210,7 +210,7 @@ void Notifier::setup() {
       elastic_file_provenance_connections[i] = create_ndb_connection(mDatabaseName);
     }
     mFileProvenanceElasticDataReaders = new FileProvenanceElasticDataReaders(elastic_file_provenance_connections, 
-      mFileProvenanceTU.mNumReaders, mHopsworksEnabled, mFileProvenanceElastic, mLRUCap);
+      mFileProvenanceTU.mNumReaders, mHopsworksEnabled, mFileProvenanceElastic);
     mFileProvenanceBatcher = new RCBatcher<FileProvenanceRow, SConn, ProvKeys>(
       mFileProvenanceTableTailer, mFileProvenanceElasticDataReaders,
       mFileProvenanceTU.mWaitTime, mFileProvenanceTU.mBatchSize);
