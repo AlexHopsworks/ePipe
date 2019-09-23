@@ -325,7 +325,7 @@ namespace FileProvenanceConstants {
       cause << "prov type could not be parsed:" << dsProvType;
       throw cause.str();
     } else {
-      std::string provType = provTypeDoc["op_store"].GetString();
+      std::string provType = provTypeDoc["provStatus"].GetString();
       boost::to_upper(provType);
       if(provType == PROV_TYPE_STORE_STATE) {
         return ProvOpStoreType::STORE_STATE;
