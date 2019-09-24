@@ -394,29 +394,27 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, Bul
   for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it, i++) {
     FileProvenanceRow row = *it;
     arrivalTimes[i] = row.mEventCreationTime;
-    std::list<ProcessRowResult> result = process_row(row);
-    for(ProcessRowResult item : result) {
-      //need at least one char even for nop, to make progress when batch size is 1
-      if(boost::get<1>(item) == "nop") {
-        out << FileProvenanceConstants::ELASTIC_NOP;
-      } else {
-        out << boost::get<0>(item) << std::endl;
-      }
-      bulk.mPKs.mIndex.push_back(boost::get<1>(item));
-      bulk.mPKs.mFileProvLogKs.push_back(boost::get<2>(item));
-      bulk.mPKs.mXAttrBufferKs.push_back(boost::get<3>(item));
+    ProcessRowResult result = process_row(row);
+    bulk.mPKs.mIndex = boost::get<0>(result);
+    bulk.mPKs.mFileProvLogKs = boost::get<2>(result);
+    bulk.mPKs.mXAttrBufferKs = boost::get<3>(result);
+    for(std::string item : boost::get<1>(result)) {
+        out << item << std::endl;
     }
+    bulk.mPKs.mJSON = out.str();
   }
   bulk.mArrivalTimes = arrivalTimes;
-  bulk.mJSON = out.str();
+  bulk.mJSON = ""; //use bulk key mJSON
 }
 
-std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
+boost::tuple<ProvKeys, std::string> FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
   LOG_DEBUG("reading provenance for inode:" << row.mInodeId);
-  std::list<ProcessRowResult> result;
+  std::list<std::string> bulkOps;
+
   FileProvenanceConstants::Operation op = FileProvenanceConstants::findOp(row);
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
   FileProvenanceConstants::ProvOpStoreType provType = readProvType(row);
+  std::string provIndex = FileProvenanceConstants::provIndex(row);
   switch (op) {
     case FileProvenanceConstants::Operation::OP_CREATE: {
       switch (mlAux.first) {
@@ -426,13 +424,13 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
         case FileProvenanceConstants::MLType::EXPERIMENT:
         case FileProvenanceConstants::MLType::DATASET: {
           std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlAux.second, mlAux.first);
-          result.push_back(boost::make_tuple(state, "index", boost::none, boost::none));
+          bulkOps.push_back(state);
         } break;
         default: ;break; //do nothing
       }
       if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
-        result.push_back(boost::make_tuple(op, "index", boost::none, boost::none));
+        bulkOps.push_back(op);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_DELETE: {
@@ -443,20 +441,20 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
         case FileProvenanceConstants::MLType::EXPERIMENT:
         case FileProvenanceConstants::MLType::DATASET: {
           std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row));
-          result.push_back(boost::make_tuple(state, "index", boost::none, boost::none));
+          bulkOps.push_back(state);
         } break;
         default: ;break; //do nothing
       }
       if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
-        result.push_back(boost::make_tuple(op, "index", boost::none, boost::none));
+        bulkOps.push_back(op);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_MODIFY_DATA:
     case FileProvenanceConstants::Operation::OP_ACCESS_DATA: {
       if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
-        result.push_back(boost::make_tuple(op, "index", boost::none, boost::none));
+        bulkOps.push_back(op);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_XATTR_ADD:
@@ -474,12 +472,12 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
         switch (provType) {
           case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: {
             std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row));
-            result.push_back(boost::make_tuple(state, "index", boost::none, boost::none));
+            bulkOps.push_back(state);
           } break;
           case FileProvenanceConstants::ProvOpStoreType::STORE_STATE:
           case FileProvenanceConstants::ProvOpStoreType::STORE_ALL: {
             std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlAux.second, mlAux.first);
-            result.push_back(boost::make_tuple(state, "index", boost::none, boost::none));
+            bulkOps.push_back(state);
           } break;
           default: {
             LOG_ERROR("prov state - xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(provType));
@@ -499,7 +497,7 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
            case FileProvenanceConstants::ProvOpStoreType::STORE_ALL:
            case FileProvenanceConstants::ProvOpStoreType::STORE_STATE: {
              std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), row, xattr.mValue);
-             result.push_back(boost::make_tuple(xattrStateVal, "index", boost::none, boost::none));
+             bulkOps.push_back(xattrStateVal);
            } break;
            case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: break;
            default: {
@@ -513,16 +511,16 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
       }
       if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string xattrOpVal = ElasticHelper::addXAttrOp(ElasticHelper::opId(row), row, xattr.mValue, mlAux.second, mlAux.first);
-        result.push_back(boost::make_tuple(xattrOpVal, "index", boost::none, boost::none));
+        bulkOps.push_back(xattrOpVal);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_XATTR_DELETE: {
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, row.mXAttrName, row.mLogicalTime);
       std::string xattrStateVal = ElasticHelper::deleteXAttrFromState(ElasticHelper::stateId(row), row);
-      result.push_back(boost::make_tuple(xattrStateVal, "index", boost::none, boost::none));
+      bulkOps.push_back(xattrStateVal);
       if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string xattrOpVal = ElasticHelper::deleteXAttrOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
-        result.push_back(boost::make_tuple(xattrOpVal, "index", boost::none, boost::none));
+        bulkOps.push_back(xattrOpVal);
       }
     } break;
     default: {
@@ -538,13 +536,13 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
     case FileProvenanceConstants::Operation::OP_DELETE:
     case FileProvenanceConstants::Operation::OP_MODIFY_DATA:
     case FileProvenanceConstants::Operation::OP_ACCESS_DATA: {
-      result.push_back(boost::make_tuple("", "nop", row.getPK(), boost::none));
+      return boost::make_tuple(provIndex, bulkOps, row.getPK(), boost::none);
     } break;
     case FileProvenanceConstants::Operation::OP_XATTR_ADD:
     case FileProvenanceConstants::Operation::OP_XATTR_UPDATE:
     case FileProvenanceConstants::Operation::OP_XATTR_DELETE: {
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, row.mXAttrName, row.mLogicalTime);
-      result.push_back(boost::make_tuple("", "nop", row.getPK(), xattrBufferKey));
+      return boost::make_tuple(provIndex, bulkOps, row.getPK(), xattrBufferKey);
     } break;
     default: {
       LOG_WARN("operation not stored:" << row.mOperation);
@@ -553,7 +551,6 @@ std::list<ProcessRowResult> FileProvenanceElasticDataReader::process_row(FilePro
       throw std::logic_error(cause.str());;
     }
   }
-  return result;
 }
 
 FPXAttrBufferRow FileProvenanceElasticDataReader::readBufferedXAttr(FPXAttrBufferPK xattrBufferKey) {

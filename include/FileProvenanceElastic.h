@@ -31,7 +31,7 @@ namespace bc = boost::accumulators;
 typedef bc::accumulator_set<double, bc::stats<bc::tag::mean> > Accumulator;
 
 struct ProvKeys {
-  std::vector<std::string> mIndex;
+  std::string mIndex;
   PKeys mFileProvLogKs;
   FPXAttrBKeys mXAttrBufferKs;
 };

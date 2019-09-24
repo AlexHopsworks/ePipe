@@ -356,6 +356,10 @@ namespace FileProvenanceConstants {
     }
   }
 
+  inline static const std::string provIndex(FileProvenanceRow row) {
+    std::stringstream aux;
+    aux << "provenance_" << boost::algorithm::to_lower_copy(row.mProjectName);
+  }
 }
 
 #endif /* FILEPROVENANCECONSTANTS_H */
