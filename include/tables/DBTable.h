@@ -31,7 +31,7 @@ template<typename TableRow>
 class DBTable : public DBTableBase {
 public:
   DBTable(const std::string table);
-  DBTable(const std::string table, bool readEpoch);
+  DBTable(const std::string table, const DBTableBase* companionTable);
 
   void getAll(Ndb* connection);
   bool next();
@@ -51,9 +51,12 @@ private:
   NdbTransaction* mCurrentTransaction;
   NdbOperation* mCurrentOperation;
   NdbRecAttr** mCurrentRow;
+  const DBTableBase* mCompanionTableBase;
+  const NdbDictionary::Table* mCompanionTable;
 
   void close();
   void applyConditionOnOperation(NdbOperation* operation, AnyMap& any);
+  void applyConditionOnCompanionTableOperation(NdbOperation* operation, AnyMap& any);
   
 protected:
   NdbRecAttr** getColumnValues(NdbOperation* op);
@@ -71,6 +74,7 @@ protected:
 
   void doDelete(Any any);
   void doDelete(AnyMap& any);
+  void doDeleteOnCompanionTable(AnyMap& any);
 
   void getAll(Ndb* connection, std::string index);
   void setReadEpoch(bool readEpoch);
@@ -85,8 +89,13 @@ protected:
 
 template<typename TableRow>
 DBTable<TableRow>::DBTable(const std::string table)
-: DBTableBase(table), mReadEpoch(false) {
+: DBTableBase(table), mReadEpoch(false), mCompanionTableBase(nullptr) {
 
+}
+
+template<typename TableRow>
+DBTable<TableRow>::DBTable(const std::string table, const DBTableBase* companionTable)
+    : DBTableBase(table), mReadEpoch(false), mCompanionTableBase(companionTable) {
 }
 
 template<typename TableRow>
@@ -138,6 +147,9 @@ template<typename TableRow>
 void DBTable<TableRow>::start(Ndb* connection) {
   mDatabase = getDatabase(connection);
   mTable = getTable(mDatabase);
+  if(mCompanionTableBase != nullptr){
+    mCompanionTable = getTable(mDatabase, mCompanionTableBase->getName());
+  }
   mCurrentTransaction = startNdbTransaction(connection);
   LOG_DEBUG(getName() << " -- Start Transaction");
 }
@@ -264,6 +276,15 @@ void DBTable<TableRow>::doDelete(AnyMap& any) {
 }
 
 template<typename TableRow>
+void DBTable<TableRow>::doDeleteOnCompanionTable(AnyMap& any) {
+  LOG_DEBUG(getName() << " -- doDelete companion");
+  mCurrentOperation = getNdbOperation(mCurrentTransaction, mCompanionTable);
+  mCurrentOperation->deleteTuple();
+  applyConditionOnCompanionTableOperation(mCurrentOperation, any);
+}
+
+
+template<typename TableRow>
 boost::unordered_map<int, TableRow> DBTable<TableRow>::doRead(Ndb* connection, UISet& ids){
   AnyVec anyVec;
   IVec idsVec;
@@ -336,6 +357,7 @@ void DBTable<TableRow>::applyConditionOnGetAll(NdbScanFilter& filter) {
 template<typename TableRow>
 void DBTable<TableRow>::applyConditionOnOperation(NdbOperation* operation, AnyMap& any) {
   std::stringstream log;
+  LOG_DEBUG(getName() << " -- apply condition");
   for (AnyMap::iterator it = any.begin(); it != any.end(); ++it) {
     int i = it->first;
     Any a = it->second;
@@ -358,7 +380,39 @@ void DBTable<TableRow>::applyConditionOnOperation(NdbOperation* operation, AnyMa
       operation->equal(colName.c_str(), get_ndb_varchar(pk,
               mTable->getColumn(colName.c_str())->getArrayType()).c_str());
     }else{
-      LOG_ERROR(getName() << " -- apply where unkown type" << a.type().name());
+      LOG_ERROR(getName() << " -- apply where unknown type" << a.type().name());
+    }
+  }
+  LOG_DEBUG(getName() << " apply conditions on operation " << std::endl << log.str());
+}
+
+template<typename TableRow>
+void DBTable<TableRow>::applyConditionOnCompanionTableOperation(NdbOperation* operation, AnyMap& any) {
+  std::stringstream log;
+  LOG_DEBUG(getName() << " -- apply condition");
+  for (AnyMap::iterator it = any.begin(); it != any.end(); ++it) {
+    int i = it->first;
+    Any a = it->second;
+    std::string colName = mCompanionTableBase->getColumn(i);
+    if (a.type() == typeid (int)) {
+      int pk = boost::any_cast<int>(a);
+      log << colName << " = " << pk << std::endl;
+      operation->equal(colName.c_str(), pk);
+    } else if(a.type() == typeid(Int64)){
+      Int64 pk = boost::any_cast<Int64>(a);
+      log << colName << " = " << pk << std::endl;
+      operation->equal(colName.c_str(), pk);
+    } else if(a.type() == typeid(Int8)){
+      Int8 pk = boost::any_cast<Int8>(a);
+      log << colName << " = " << (int) pk << std::endl;
+      operation->equal(colName.c_str(), pk);
+    } else if (a.type() == typeid (std::string)) {
+      std::string pk = boost::any_cast<std::string>(a);
+      log << colName << " = " << pk << std::endl;
+      operation->equal(colName.c_str(), get_ndb_varchar(pk,
+          mCompanionTable->getColumn(colName.c_str())->getArrayType()).c_str());
+    }else{
+      LOG_ERROR(getName() << " -- apply where unknown type" << a.type().name());
     }
   }
   LOG_DEBUG(getName() << " apply conditions on operation " << std::endl << log.str());
