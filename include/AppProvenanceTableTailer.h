@@ -17,30 +17,28 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifndef PROVENANCETABLETAILER_H
-#define PROVENANCETABLETAILER_H
+#ifndef APPPROVENANCETABLETAILER_H
+#define APPPROVENANCETABLETAILER_H
 
 #include "RCTableTailer.h"
-#include "tables/ProvenanceLogTable.h"
+#include "tables/AppProvenanceLogTable.h"
 
-class ProvenanceTableTailer : public RCTableTailer<ProvenanceRow> {
+class AppProvenanceTableTailer : public RCTableTailer<AppProvenanceRow> {
 public:
-  ProvenanceTableTailer(Ndb* ndb, Ndb* ndbRecovery, const int
-  poll_maxTimeToWait, const Barrier barrier);
-  ProvenanceRow consume();
-  virtual ~ProvenanceTableTailer();
+  AppProvenanceTableTailer(Ndb* ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier);
+  AppProvenanceRow consume();
+  virtual ~AppProvenanceTableTailer();
 
 private:
-  virtual void handleEvent(NdbDictionary::Event::TableEvent eventType, ProvenanceRow pre, ProvenanceRow row);
+  virtual void handleEvent(NdbDictionary::Event::TableEvent eventType, AppProvenanceRow pre, AppProvenanceRow row);
   void barrierChanged();
 
-  void pushToQueue(PRpq* curr);
+  void pushToQueue(AppPRpq* curr);
 
-  CPRq *mQueue;
-  PRpq* mCurrentPriorityQueue;
+  AppCPRq *mQueue;
+  AppPRpq* mCurrentPriorityQueue;
   boost::mutex mLock;
-
 };
 
 
-#endif //PROVENANCETABLETAILER_H
+#endif //APPPROVENANCETABLETAILER_H
