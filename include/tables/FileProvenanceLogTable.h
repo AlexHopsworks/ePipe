@@ -161,10 +161,7 @@ public:
 
     FileProvLogHandler(FileProvenancePK pk, boost::optional<FPXAttrBufferPK> bufferPK) : mPK(pk), mBufferPK(bufferPK) {}
     void removeLog(Ndb* connection) const override {
-      FileProvenanceLogTable().deleteLogRow(connection, mPK);
-      if(mBufferPK) {
-        FileProvenanceXAttrBufferTable().deleteLogRow(connection, mBufferPK.get());
-      }
+      //
     }
     LogType getType() const override {
       return LogType::PROVFILELOG;
@@ -177,7 +174,7 @@ public:
     }
   };
 
-  FileProvenanceLogTable() : DBWatchTable("hdfs_file_provenance_log") {
+  FileProvenanceLogTable() : DBWatchTable("hdfs_file_provenance_log", new FileProvenanceXAttrBufferTable()) {
     addColumn("inode_id");
     addColumn("inode_operation");
     addColumn("io_logical_time");
@@ -232,28 +229,18 @@ public:
   void cleanLogs(Ndb* connection, std::vector<const LogHandler*>&logrh) {
     start(connection);
     for (auto log : logrh) {
-      if (log == nullptr) {
-        continue;
+      if (log != nullptr && log->getType() == LogType::PROVFILELOG) {
+        cleanLogInt(connection, log);
       }
-      if (log->getType() != LogType::PROVFILELOG) {
-        continue;
-      }
-
-      log->removeLog(connection);
     }
     end();
   }
 
   void cleanLog(Ndb* connection, const LogHandler* log) {
     start(connection);
-    if (log == nullptr) {
-      return;
+    if (log != nullptr && log->getType() == LogType::PROVFILELOG) {
+      cleanLogInt(connection, log);
     }
-    if (log->getType() != LogType::PROVFILELOG) {
-      return;
-    }
-
-    log->removeLog(connection);
     end();
   }
 
@@ -263,6 +250,15 @@ public:
 
   LogHandler* getLogHandler(FileProvenancePK pk, boost::optional<FPXAttrBufferPK> bufferPK) {
     return new FileProvLogHandler(pk, bufferPK);
+  }
+
+private:
+  void cleanLogInt(Ndb* connection, const LogHandler* log) {
+    const FileProvLogHandler* fplog = static_cast<const FileProvLogHandler*>(log);
+    deleteLogRow(connection, fplog->mPK);
+    if(fplog->mBufferPK) {
+      deleteCompanionRow(connection, fplog->mBufferPK.get());
+    }
   }
 
   void deleteLogRow(Ndb* connection, FileProvenancePK pk) {
@@ -276,6 +272,17 @@ public:
 
     doDelete(a);
     LOG_DEBUG("Delete file provenance row: " << pk.to_string());
+  }
+
+  void deleteCompanionRow(Ndb* connection, FPXAttrBufferPK pk) {
+    AnyMap a;
+    a[0] = pk.mInodeId;
+    a[1] = pk.mNamespace;
+    a[2] = pk.mName;
+    a[3] = pk.mInodeLogicalTime;
+
+    doDeleteOnCompanionTable(a);
+    LOG_DEBUG("Delete xattr buffer row: " << pk.to_string());
   }
 };
 #endif /* FILEPROVENANCELOGTABLE_H */

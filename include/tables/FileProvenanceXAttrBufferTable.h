@@ -95,21 +95,11 @@ public:
 
   boost::optional<FPXAttrBufferRow> get(Ndb* connection, FPXAttrBufferPK key) {
     FPXAttrBufferRow row = get(connection, key.mInodeId, key.mNamespace, key.mName, key.mInodeLogicalTime);
-    if(readCheckExists(key, row)) {
+    if (readCheckExists(key, row)) {
       return row;
     } else {
       return boost::none;
     }
-  }
-  void deleteLogRow(Ndb* connection, FPXAttrBufferPK pk) {
-    AnyMap a;
-    a[0] = pk.mInodeId;
-    a[1] = pk.mNamespace;
-    a[2] = pk.mName;
-    a[3] = pk.mInodeLogicalTime;
-
-    doDelete(a);
-    LOG_DEBUG("Delete xattr buffer row: " << pk.to_string());
   }
 
   private:

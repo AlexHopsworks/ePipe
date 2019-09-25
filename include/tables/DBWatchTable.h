@@ -46,6 +46,7 @@ template<typename TableRow>
 class DBWatchTable : public DBTable<TableRow> {
 public:
   DBWatchTable(const std::string table);
+  DBWatchTable(const std::string table, const DBTableBase* companionTable);
   evtvec_size_type getNoEvents() const;
   NdbDictionary::Event::TableEvent getEvent(evtvec_size_type index) const;
   EpochsRowsMap<TableRow> getAllForRecovery(Ndb* connection);
@@ -65,6 +66,11 @@ protected:
 
 template<typename TableRow>
 DBWatchTable<TableRow>::DBWatchTable(const std::string table) : DBTable<TableRow>(table) {
+}
+
+template<typename TableRow>
+DBWatchTable<TableRow>::DBWatchTable(const std::string table, const DBTableBase* companionTable) :
+DBTable<TableRow>(table, companionTable) {
 }
 
 template<typename TableRow>
