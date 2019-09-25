@@ -14,33 +14,31 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "ProvenanceTableTailer.h"
+#include "AppProvenanceTableTailer.h"
 
-ProvenanceTableTailer::ProvenanceTableTailer(Ndb *ndb, Ndb* ndbRecovery, const
-int poll_maxTimeToWait, const Barrier barrier)
-: RCTableTailer(ndb, ndbRecovery, new ProvenanceLogTable(), poll_maxTimeToWait,
-    barrier) {
-  mQueue = new CPRq();
-  mCurrentPriorityQueue = new PRpq();
+AppProvenanceTableTailer::AppProvenanceTableTailer(Ndb *ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier)
+: RCTableTailer(ndb, ndbRecovery, new AppProvenanceLogTable(), poll_maxTimeToWait, barrier) {
+  mQueue = new AppCPRq();
+  mCurrentPriorityQueue = new AppPRpq();
 }
 
-void ProvenanceTableTailer::handleEvent(NdbDictionary::Event::TableEvent eventType, ProvenanceRow pre,
-        ProvenanceRow row) {
+void AppProvenanceTableTailer::handleEvent(NdbDictionary::Event::TableEvent eventType, AppProvenanceRow pre,
+        AppProvenanceRow row) {
   mLock.lock();
   mCurrentPriorityQueue->push(row);
   int size = mCurrentPriorityQueue->size();
   mLock.unlock();
 
-  LOG_TRACE("push provenance log for [" << row.mInodeName << "] to queue[" << size << "], Op [" << row.mOperation << "]");
+  LOG_TRACE("push provenance log for [" << row.mId << "] to queue[" << size << "]");
 
 }
 
-void ProvenanceTableTailer::barrierChanged() {
-  PRpq* pq = NULL;
+void AppProvenanceTableTailer::barrierChanged() {
+  AppPRpq* pq = NULL;
   mLock.lock();
   if (!mCurrentPriorityQueue->empty()) {
     pq = mCurrentPriorityQueue;
-    mCurrentPriorityQueue = new PRpq();
+    mCurrentPriorityQueue = new AppPRpq();
   }
   mLock.unlock();
 
@@ -50,14 +48,14 @@ void ProvenanceTableTailer::barrierChanged() {
   }
 }
 
-ProvenanceRow ProvenanceTableTailer::consume() {
-  ProvenanceRow row;
+AppProvenanceRow AppProvenanceTableTailer::consume() {
+  AppProvenanceRow row;
   mQueue->wait_and_pop(row);
-  LOG_TRACE(" pop inode [" << row.mInodeId << "] from queue \n" << row.to_string());
+  LOG_TRACE(" pop appid [" << row.mId << "] from queue \n" << row.to_string());
   return row;
 }
 
-void ProvenanceTableTailer::pushToQueue(PRpq *curr) {
+void AppProvenanceTableTailer::pushToQueue(AppPRpq *curr) {
   while (!curr->empty()) {
     mQueue->push(curr->top());
     curr->pop();
@@ -65,6 +63,6 @@ void ProvenanceTableTailer::pushToQueue(PRpq *curr) {
   delete curr;
 }
 
-ProvenanceTableTailer::~ProvenanceTableTailer() {
+AppProvenanceTableTailer::~AppProvenanceTableTailer() {
   delete mQueue;
 }

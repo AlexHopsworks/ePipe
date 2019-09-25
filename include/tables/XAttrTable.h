@@ -121,6 +121,8 @@ private:
     opWriter.EndObject();
 
     opWriter.EndObject();
+
+    LOG_INFO("script:" << sbOp.GetString());
     return std::string(sbOp.GetString());
 
   }
@@ -157,6 +159,24 @@ private:
     return std::string(sbOp.GetString());
   }
 
+};
+
+struct XAttrPK {
+  Int64 mInodeId;
+  Int8 mNamespace;
+  std::string mName;
+
+  XAttrPK(Int64 inodeId, Int8 ns, std::string name) {
+    mInodeId = inodeId;
+    mNamespace = ns;
+    mName = name;
+  }
+
+  std::string to_string() {
+    std::stringstream out;
+    out << mInodeId << "-" << mNamespace << "-" << mName;
+    return out.str();
+  }
 };
 
 typedef std::vector<XAttrRow> XAttrVec;
@@ -245,5 +265,18 @@ public:
     return doRead(connection, PRIMARY_INDEX, args);
   }
 
+  boost::optional<XAttrRow> get(Ndb* connection, XAttrPK key) {
+    XAttrRow row = get(connection, key.mInodeId, key.mNamespace, key.mName);
+    if(readCheckExists(key, row)) {
+      return row;
+    } else {
+      return boost::none;
+    }
+  }
+
+private:
+  inline static bool readCheckExists(XAttrPK key, XAttrRow row) {
+    return key.mInodeId == row.mInodeId && key.mNamespace == row.mNamespace && key.mName == row.mName;
+  }
 };
 #endif //EPIPE_XATTRTABLE_H
