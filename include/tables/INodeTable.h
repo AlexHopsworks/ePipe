@@ -40,11 +40,10 @@ struct INodeRow {
   int mLogicalTime;
   FsOpType mOperation;
   bool mIsDir;
-  Int8 mNumUserXAttrs;
-  Int8 mNumSysXAttrs;
+  Int8 mNumXAttrs;
 
   bool has_xattrs(){
-    return mNumUserXAttrs > 0 ||  mNumSysXAttrs > 0;
+    return mNumXAttrs > 0;
   }
 
   bool is_equal(ProjectRow proj){
@@ -218,8 +217,7 @@ public:
     addColumn("group_id");
     addColumn("logical_time");
     addColumn("is_dir");
-    addColumn("num_user_xattrs");
-    addColumn("num_sys_xattrs");
+    addColumn("num_xattrs");
   }
 
   INodeRow getRow(NdbRecAttr* values[]) {
@@ -233,8 +231,7 @@ public:
     row.mGroupId = values[6]->int32_value();
     row.mLogicalTime = values[7]->int32_value();
     row.mIsDir = values[8]->int8_value() == 1;
-    row.mNumUserXAttrs = values[9]->int8_value();
-    row.mNumSysXAttrs = values[10]->int8_value();
+    row.mNumXAttrs = values[9]->int8_value();
     return row;
   }
 
