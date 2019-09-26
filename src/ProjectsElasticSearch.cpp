@@ -27,7 +27,7 @@ ProjectsElasticSearch::ProjectsElasticSearch(std::string elastic_addr, std::stri
         int bulk_size, const bool stats, MConn conn) : ElasticSearchBase(elastic_addr, time_to_wait_before_inserting, bulk_size),
 mIndex(index),
 mStats(stats), mConn(conn), mStartTime(getCurrentTime()){
-  mElasticBulkAddr = getElasticSearchBulkUrl(mIndex);
+  mElasticBulkAddr = getElasticSearchBulkUrl(mIndex, DEFAULT_TYPE);
 }
 
 void ProjectsElasticSearch::process(std::vector<eBulk>* bulks) {
@@ -89,14 +89,14 @@ bool ProjectsElasticSearch::bulkRequest(eEvent& event) {
 }
 
 void ProjectsElasticSearch::addDoc(Int64 inodeId, std::string json) {
-  std::string url = getElasticSearchUpdateDocUrl(mIndex, inodeId);
+  std::string url = getElasticSearchUpdateDocUrl(mIndex, DEFAULT_TYPE, inodeId);
   if(!httpPostRequest(url, json)){
     LOG_FATAL("Failure while add doc " << inodeId << std::endl << json);
   }
 }
 
 void ProjectsElasticSearch::deleteDoc(Int64 inodeId) {
-  std::string url = getElasticSearchUrlOnDoc(mIndex, inodeId);
+  std::string url = getElasticSearchUrlOnDoc(mIndex, DEFAULT_TYPE, inodeId);
   if(!httpDeleteRequest(url)){
     LOG_FATAL("Failure while deleting doc " << inodeId);
   }
@@ -104,7 +104,7 @@ void ProjectsElasticSearch::deleteDoc(Int64 inodeId) {
 
 void ProjectsElasticSearch::deleteSchemaForINode(Int64 inodeId, std::string
 json) {
-  std::string url = getElasticSearchUpdateDocUrl(mIndex, inodeId);
+  std::string url = getElasticSearchUpdateDocUrl(mIndex, DEFAULT_TYPE, inodeId);
   if(!httpPostRequest(url, json)){
     LOG_FATAL("Failure while deleting schema for inode " << inodeId << std::endl
     << json);

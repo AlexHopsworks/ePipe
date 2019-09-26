@@ -17,31 +17,33 @@
 #ifndef FILEPROVENANCEELASTIC_H
 #define FILEPROVENANCEELASTIC_H
 
-#include "ElasticSearchWithMetrics.h"
-#include "FileProvenanceTableTailer.h"
 #include "tables/FileProvenanceLogTable.h"
-#include "tables/FileProvenanceXAttrBufferTable.h"
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/min.hpp>
-#include <boost/accumulators/statistics/max.hpp>
 
-class FileProvenanceElastic : public ElasticSearchWithMetrics {
+struct testEvent {
+  std::string val;
+};
+
+struct testBulk {
+  std::vector<testEvent> mEvents;
+};
+
+struct bulkCursor {
+  int bulkStartOffset = 0;
+  int bulkEndOffset = 0;
+  int inBulkStartOffset = 0;
+  int inBulkEndOffset = 0;
+  std::string currentIndex;
+  std::string val = "";
+};
+
+class FileProvenanceElasticTest {
 public:
-  FileProvenanceElastic(std::string elastic_addr, std::string index,
-          int time_to_wait_before_inserting, int bulk_size,
-          const bool stats, SConn conn);
+  FileProvenanceElasticTest();
 
-  virtual ~FileProvenanceElastic();
-private:
-  const std::string mIndex;
-  SConn mConn;
-
-  const FileProvenanceLogTable::FileProvLogHandler* getLogHandler(const LogHandler* log);
-  void intProcessOneByOne(eBulk bulk);
-  bool intProcessBatch(std::string val, std::vector<eBulk>* bulks, std::vector<const LogHandler*> cleanupHandlers, ptime start_time);
-  virtual void process(std::vector<eBulk>* bulks);
+  virtual ~FileProvenanceElasticTest();
+public:
+  void processPerEvent(bulkCursor* cursor, std::vector<testBulk>* bulks);
+  void test();
 };
 
 template <typename Iter>
@@ -55,5 +57,6 @@ bool is_last(Iter iter, const Cont& cont)
 {
   return (iter != cont.end()) && (next(iter) == cont.end());
 };
+
 #endif /* FILEPROVENANCEELASTIC_H */
 

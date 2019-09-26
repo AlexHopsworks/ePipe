@@ -18,60 +18,102 @@
 #include "FileProvenanceElastic.h"
 
 FileProvenanceElastic::FileProvenanceElastic(std::string elastic_addr, std::string index,
-        int time_to_wait_before_inserting, int bulk_size, const bool stats, SConn conn) : 
+        int time_to_wait_before_inserting, int bulk_size, const bool stats, SConn conn) :
 ElasticSearchWithMetrics(elastic_addr, time_to_wait_before_inserting, bulk_size, stats),
-mIndex(index), mConn(conn) {
-  mElasticBulkAddr = getElasticSearchBulkUrl(mIndex);
+mIndex(index), mConn(conn) {}
+
+const FileProvenanceLogTable::FileProvLogHandler* FileProvenanceElastic::getLogHandler(const LogHandler* log) {
+  if (log != nullptr && log->getType() == LogType::PROVFILELOG) {
+    return dynamic_cast<const FileProvenanceLogTable::FileProvLogHandler *>(log);
+  } else {
+    LOG_ERROR("expected only PROVFILELOG");
+    std::string cause = "expected only PROVFILELOG";
+    throw std::logic_error(cause);
+  }
 }
 
-void FileProvenanceElastic::process(std::vector<eBulk>* bulks) {
-  std::vector<const LogHandler*> logRHandlers;
-  std::string batch;
-  for (auto it = bulks->begin(); it != bulks->end();++it) {
-    eBulk bulk = *it;
-    std::string out;
-    for(auto e : bulk.mEvents){
-      if(e.getJSON() != FileProvenanceConstants::ELASTIC_NOP) {
-        out += e.getJSON();
-      }
-    }
-    batch += out;
-    logRHandlers.insert(logRHandlers.end(), bulk.mLogHandlers.begin(), bulk.mLogHandlers.end());
-    if(mStats){
-      mCounters.bulkReceived(bulk);
-    }
-  }
-
-  ptime start_time = Utils::getCurrentTime();
-  if (httpPostRequest(mElasticBulkAddr, batch)) {
-    FileProvenanceLogTable().cleanLogs(mConn, logRHandlers);
-    if (mStats) {
-      mCounters.bulksProcessed(start_time, bulks);
-    }
-  }else{
-    for (auto it = bulks->begin(); it != bulks->end();++it) {
-      eBulk bulk = *it;
-      for(eEvent event : bulk.mEvents){
-        if(!bulkRequest(event)){
+//replay one by one the events between the cursor positions
+void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
+  std::vector<eBulk>::iterator itB, endB;
+  std::deque<eEvent>::iterator itE, endE;
+  std::string mElasticBulkAddr = getElasticSearchBulkUrl();
+  for(auto event : bulk.mEvents) {
+    if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP
+        && event.getJSON() != FileProvenanceConstants::ELASTIC_NOP2) {
+      LOG_DEBUG("val:" << event.getJSON());
+      if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP) {
+        if (httpPostRequest(mElasticBulkAddr, event.getJSON())){
+          FileProvenanceLogTable().cleanLog(mConn, event.getLogHandler());
+        } else {
           LOG_FATAL("Failure while processing log : "
                         << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
         }
       }
+      FileProvenanceLogTable().cleanLog(mConn, event.getLogHandler());
+    }
+  }
+}
+
+bool FileProvenanceElastic::intProcessBatch(std::string val, std::vector<eBulk>* bulks, std::vector<const LogHandler*> cleanupHandlers, ptime start_time) {
+  LOG_DEBUG("writting batch to index consists of events:" << bulks->size());
+  if (!val.empty()) {
+    //cursor contains bulk value - send to elastic
+    LOG_DEBUG("bulk write size:" << val.length() << " val:" << val);
+    std::string mElasticBulkAddr = getElasticSearchBulkUrl();
+    if (httpPostRequest(mElasticBulkAddr, val)) {
+      //bulk success
+      FileProvenanceLogTable().cleanLogs(mConn, cleanupHandlers);
+      if (mStats && !bulks->empty()) {
+        mCounters.bulksProcessed(start_time, bulks);
+      }
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    //maybe this was only nops for this index
+    LOG_DEBUG("only nop events");
+    FileProvenanceLogTable().cleanLogs(mConn, cleanupHandlers);
+    if (mStats && !bulks->empty()) {
+      LOG_DEBUG("adding to stats");
+      mCounters.bulksProcessed(start_time, bulks);
+      LOG_DEBUG("added to stats");
+    }
+    return true;
+  }
+}
+
+void FileProvenanceElastic::process(std::vector<eBulk>* bulks) {
+  LOG_DEBUG("processing batch of size:" << bulks->size());
+  ptime start_time = Utils::getCurrentTime();
+  std::string val = "";
+  std::vector<const LogHandler*> cleanupHandlers;
+
+  for(auto bulk : *bulks) {
+    if(mStats){
+      mCounters.bulkReceived(bulk);
+    }
+    for(auto event : bulk.mEvents) {
+      if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP
+      && event.getJSON() != FileProvenanceConstants::ELASTIC_NOP2) {
+//        LOG_DEBUG("bulk add:" << event.getJSON());
+        val += event.getJSON();
+//        LOG_DEBUG("all bulk:" << cursor->val);
+      }
+      cleanupHandlers.push_back(event.getLogHandler());
+    }
+  }
+  if(!intProcessBatch(val, bulks, cleanupHandlers, start_time)) {
+    LOG_INFO("batch write failed - trying one by one");
+    //bulk failed - process one by one and stop and failing one
+    for(auto bulk : *bulks) {
+      intProcessOneByOne(bulk);
       if (mStats) {
         mCounters.bulkProcessed(start_time, bulk);
       }
     }
   }
 }
-
-bool FileProvenanceElastic::bulkRequest(eEvent& event) {
-  if (httpPostRequest(mElasticBulkAddr, event.getJSON())){
-    FileProvenanceLogTable().cleanLog(mConn, event.getLogHandler());
-    return true;
-  }
-  return false;
-}
-
 
 FileProvenanceElastic::~FileProvenanceElastic() {
 }
