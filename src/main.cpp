@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     int elastic_batch_size = 5000;
     int elastic_issue_time = 5000;
 
-    std::string elastic_file_provenance_index = "fileprovenance";
+    std::string elastic_file_provenance_index = "";
     std::string elastic_app_provenance_index = "appprovenance";
 
     int lru_cap = DEFAULT_MAX_CAPACITY;
@@ -212,3 +212,10 @@ int main(int argc, char** argv) {
     LOG_ERROR(ex.what());
   }
 }
+
+//#include "FileProvenanceElasticTest.h"
+//
+//int main(int argc, char** argv) {
+//  FileProvenanceElasticTest* test = new FileProvenanceElasticTest();
+//  test->test();
+//}

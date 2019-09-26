@@ -24,19 +24,24 @@ std::string ElasticSearchBase::getElasticSearchUrlonIndex(std::string index) {
   return str;
 }
 
-std::string ElasticSearchBase::getElasticSearchUrlOnDoc(std::string index, Int64 doc) {
+std::string ElasticSearchBase::getElasticSearchUrlOnDoc(std::string index, std::string docType, Int64 doc) {
   std::stringstream out;
-  out << getElasticSearchUrlonIndex(index) << "/" << DEFAULT_TYPE << "/" << doc;
+  out << getElasticSearchUrlonIndex(index) << "/" << docType << "/" << doc;
   return out.str();
 }
 
-std::string ElasticSearchBase::getElasticSearchUpdateDocUrl(std::string index, Int64 doc) {
-  std::string str = getElasticSearchUrlOnDoc(index, doc) + "/_update";
+std::string ElasticSearchBase::getElasticSearchUpdateDocUrl(std::string index, std::string docType, Int64 doc) {
+  std::string str = getElasticSearchUrlOnDoc(index, docType, doc) + "/_update";
   return str;
 }
 
-std::string ElasticSearchBase::getElasticSearchBulkUrl(std::string index) {
-  std::string str = "/" + index + "/" + DEFAULT_TYPE + "/_bulk";
+std::string ElasticSearchBase::getElasticSearchBulkUrl(std::string index, std::string docType) {
+  std::string str = "/" + index + "/" + docType + "/_bulk";
+  return str;
+}
+
+std::string ElasticSearchBase::getElasticSearchBulkUrl() {
+  std::string str = "/_bulk";
   return str;
 }
 

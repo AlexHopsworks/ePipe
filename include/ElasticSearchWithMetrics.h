@@ -34,6 +34,7 @@ struct ElasticMovingCounters{
   virtual void bulkProcessed(const ptime elastic_start_time, const eBulk&bulk) = 0;
   virtual void bulksProcessed(const ptime elastic_start_time, const std::vector<eBulk>* bulk) = 0;
   virtual std::string getMetrics(const ptime startTime) const = 0;
+  virtual std::string report() = 0;
 };
 
 struct ElasticMovingCountersImpl : public ElasticMovingCounters{
@@ -50,6 +51,7 @@ struct ElasticMovingCountersImpl : public ElasticMovingCounters{
 
     ptime now = Utils::getCurrentTime();
     if(Utils::getTimeDiffInSeconds(mlastCleared, now) >= mStepSeconds){
+      LOG_WARN(report());
       reset();
       mlastCleared = now;
     }
@@ -78,6 +80,18 @@ struct ElasticMovingCountersImpl : public ElasticMovingCounters{
     }
   }
 
+  std::string report() override {
+    std::stringstream out;
+    out << mTotalNumOfEventsProcessed << ",";
+    out << mTotalNumOfBulksProcessed << ",";
+    out << bc::mean(mTotalTimePerEventAcc) << ",";
+    out << bc::mean(mTotalTimePerBulkAcc) << ",";
+    out << bc::mean(mBatchingAcc) << ",";
+    out << bc::mean(mProcessingAcc) << ",";
+    out << bc::mean(mElasticBulkTimeAcc);
+    return out.str();
+  }
+
   std::string getMetrics(const ptime startTime) const override{
     std::stringstream out;
     out << "epipe_relative_start_time_seconds{scope=\"" << mPrefix << "\"} " <<
@@ -91,7 +105,7 @@ struct ElasticMovingCountersImpl : public ElasticMovingCounters{
       out << "epipe_avg_total_time_per_event_milliseconds{scope=\"" <<
           mPrefix << "\"} " << bc::mean(mTotalTimePerEventAcc) << std::endl;
       out << "epipe_avg_total_time_per_batch_milliseconds{scope=\"" <<
-          mPrefix << "\"} " << bc::mean(mTotalTimePerEventAcc) << std::endl;
+          mPrefix << "\"} " << bc::mean(mTotalTimePerBulkAcc) << std::endl;
       out << "epipe_avg_batching_time_milliseconds{scope=\"" << mPrefix <<
           "\"} " << bc::mean(mBatchingAcc) << std::endl;
       out << "epipe_avg_ndb_processing_time_milliseconds{scope=\"" << mPrefix <<
@@ -157,7 +171,8 @@ private:
 
 struct ElasticMovingCountersSet : public ElasticMovingCounters{
   ElasticMovingCountersSet(){
-    mCounters = {ElasticMovingCountersImpl(60, "last_minute"),
+    mCounters = {ElasticMovingCountersImpl(1, "last_second"),
+                 ElasticMovingCountersImpl(60, "last_minute"),
                  ElasticMovingCountersImpl(3600, "last_hour"),
                  ElasticMovingCountersImpl(-1, "all_time")};
   }
@@ -203,6 +218,10 @@ struct ElasticMovingCountersSet : public ElasticMovingCounters{
     LOG_INFO("Bulks[" << numOfEvents << "/" << bulks->size() << "] took " << bulksTotalTime << " msec at Rate=" << bulksEventPerSecond << " events/second");
   }
 
+  std::string report() override {
+    return mCounters[0].report();
+  }
+
   std::string getMetrics(const ptime startTime) const override {
     std::stringstream out;
     for(auto& c : mCounters){
@@ -213,6 +232,7 @@ struct ElasticMovingCountersSet : public ElasticMovingCounters{
 
 private:
   std::vector<ElasticMovingCountersImpl> mCounters;
+
 };
 
 class ElasticSearchWithMetrics : public ElasticSearchBase {
