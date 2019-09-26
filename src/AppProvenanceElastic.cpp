@@ -20,7 +20,7 @@ AppProvenanceElastic::AppProvenanceElastic(std::string elastic_addr, std::string
         int time_to_wait_before_inserting, int bulk_size, const bool stats, SConn conn) : 
 ElasticSearchWithMetrics(elastic_addr, time_to_wait_before_inserting, bulk_size, mStats),
 mIndex(index), mConn(conn) {
-  mElasticBulkAddr = getElasticSearchBulkUrl(mIndex);
+  mElasticBulkAddr = getElasticSearchBulkUrl(mIndex, DEFAULT_TYPE);
 }
 
 void AppProvenanceElastic::process(std::vector<eBulk>* bulks) {

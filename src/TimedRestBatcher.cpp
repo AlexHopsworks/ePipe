@@ -85,13 +85,13 @@ void TimedRestBatcher::processBatch() {
 }
 
 bool TimedRestBatcher::httpPostRequest(std::string requestUrl, std::string json) {
-  ptime t1 = Utils::getCurrentTime();
+//  ptime t1 = Utils::getCurrentTime();
   std::string res = handleHttpRequestWithRetry(HttpVerb::POST,requestUrl, json);
 
   bool success = parseResponse(res);
-  ptime t2 = Utils::getCurrentTime();
-  LOG_INFO("POST " << requestUrl << " [" << json.length() << "]  took " <<
-                   Utils::getTimeDiffInMilliseconds(t1, t2) << " msec");
+//  ptime t2 = Utils::getCurrentTime();
+//  LOG_INFO("POST " << requestUrl << " [" << json.length() << "]  took " <<
+//                   Utils::getTimeDiffInMilliseconds(t1, t2) << " msec");
   return success;
 }
 

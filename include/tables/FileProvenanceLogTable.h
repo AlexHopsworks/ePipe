@@ -159,9 +159,14 @@ public:
     FileProvenancePK mPK;
     boost::optional<FPXAttrBufferPK> mBufferPK;
 
-    FileProvLogHandler(FileProvenancePK pk, boost::optional<FPXAttrBufferPK> bufferPK) : mPK(pk), mBufferPK(bufferPK) {}
+    FileProvLogHandler(FileProvenancePK pk, boost::optional<FPXAttrBufferPK> bufferPK) :
+    mPK(pk), mBufferPK(bufferPK) {}
+
     void removeLog(Ndb* connection) const override {
-      //
+      LOG_ERROR("do not use - logic error");
+      std::stringstream cause;
+      cause << "do not use - logic error";
+      throw std::logic_error(cause.str());
     }
     LogType getType() const override {
       return LogType::PROVFILELOG;
@@ -229,18 +234,14 @@ public:
   void cleanLogs(Ndb* connection, std::vector<const LogHandler*>&logrh) {
     start(connection);
     for (auto log : logrh) {
-      if (log != nullptr && log->getType() == LogType::PROVFILELOG) {
-        cleanLogInt(connection, log);
-      }
+      cleanLogInt(connection, log);
     }
     end();
   }
 
   void cleanLog(Ndb* connection, const LogHandler* log) {
     start(connection);
-    if (log != nullptr && log->getType() == LogType::PROVFILELOG) {
-      cleanLogInt(connection, log);
-    }
+    cleanLogInt(connection, log);
     end();
   }
 
@@ -254,10 +255,12 @@ public:
 
 private:
   void cleanLogInt(Ndb* connection, const LogHandler* log) {
-    const FileProvLogHandler* fplog = static_cast<const FileProvLogHandler*>(log);
-    deleteLogRow(connection, fplog->mPK);
-    if(fplog->mBufferPK) {
-      deleteCompanionRow(connection, fplog->mBufferPK.get());
+    if (log != nullptr && log->getType() == LogType::PROVFILELOG) {
+      const FileProvLogHandler *fplog = static_cast<const FileProvLogHandler *>(log);
+      deleteLogRow(connection, fplog->mPK);
+      if (fplog->mBufferPK) {
+        deleteCompanionRow(connection, fplog->mBufferPK.get());
+      }
     }
   }
 

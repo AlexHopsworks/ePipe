@@ -29,7 +29,7 @@
 #include "FileProvenanceConstants.h"
 #include "FileProvenanceElastic.h"
 
-typedef boost::tuple<std::string, std::list<std::string>, FileProvenancePK, boost::optional<FPXAttrBufferPK> > ProcessRowResult;
+typedef boost::tuple<std::list<std::string>, FileProvenancePK, boost::optional<FPXAttrBufferPK> > ProcessRowResult;
 
 class FileProvenanceElasticDataReader : public NdbDataReader<FileProvenanceRow, SConn> {
 public:
@@ -37,14 +37,13 @@ public:
   virtual ~FileProvenanceElasticDataReader();
 private:
   FileProvenanceLogTable mFileLogTable;
-  XAttrTable mXAttr;
   FileProvenanceXAttrBufferTable mXAttrBuffer;
 
   void processAddedandDeleted(Pq* data_batch, eBulk& bulk);
   ProcessRowResult process_row(FileProvenanceRow row);
   FPXAttrBufferRow readBufferedXAttr(FPXAttrBufferPK xattrBufferKey);
   FileProvenanceConstants::ProvOpStoreType readProvType(FileProvenanceRow row);
-  boost::optional<std::string> getProvXAttr(FPXAttrBufferPK xattrBufferKey);
+  boost::optional<FPXAttrBufferRow> getProvCore(FPXAttrVersionsK versionsKey);
 };
 
 class FileProvenanceElasticDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn>{

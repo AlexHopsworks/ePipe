@@ -23,14 +23,15 @@ FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn connectio
 class ElasticHelper {
 public:
 
-  static std::string aliveState(std::string id, FileProvenanceRow row, std::string mlId, FileProvenanceConstants::MLType mlType) {
+  static std::string aliveState(std::string id, std::string index, FileProvenanceRow row, std::string mlId, FileProvenanceConstants::MLType mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
     op.AddMember("update", opVal, opAlloc);
 
     rapidjson::Document data;
@@ -70,13 +71,51 @@ public:
     return out.str();
   }
 
-  static std::string addXAttrToState(std::string id, FileProvenanceRow row, std::string val) {
+  static std::string addProjectIIdToState(std::string id, std::string index, FileProvenanceRow row) {
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
+
+    rapidjson::Value opVal(rapidjson::kObjectType);
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
+    op.AddMember("update", opVal, opAlloc);
+
+    rapidjson::Document data;
+    data.SetObject();
+    rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
+
+    rapidjson::Value dataVal(rapidjson::kObjectType);
+
+    dataVal.AddMember("project_i_id",     rapidjson::Value().SetInt64(row.mProjectId), dataAlloc);
+
+    data.AddMember("doc", dataVal, dataAlloc);
+    data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
+
+    rapidjson::StringBuffer opBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> opWriter(opBuffer);
+    op.Accept(opWriter);
+
+    rapidjson::StringBuffer dataBuffer;
+    rapidjson::Writer<rapidjson::StringBuffer> dataWriter(dataBuffer);
+    data.Accept(dataWriter);
+
+    std::stringstream out;
+    out << opBuffer.GetString() << std::endl << dataBuffer.GetString();
+    return out.str();
+  }
+
+  static std::string addXAttrToState(std::string id, std::string index, FileProvenanceRow row, std::string val) {
     //id
     rapidjson::Document cleanupId;
     cleanupId.SetObject();
+    rapidjson::Document::AllocatorType& cleanupAlloc = cleanupId.GetAllocator();
 
     rapidjson::Value cleanupIdVal(rapidjson::kObjectType);
-    cleanupIdVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), cleanupId.GetAllocator()), cleanupId.GetAllocator());
+    cleanupIdVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), cleanupAlloc), cleanupAlloc);
+    cleanupIdVal.AddMember("_type", rapidjson::Value().SetString("file_prov", cleanupAlloc), cleanupAlloc);
+    cleanupIdVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), cleanupAlloc), cleanupAlloc);
 
     cleanupId.AddMember("update", cleanupIdVal, cleanupId.GetAllocator());
 
@@ -85,8 +124,10 @@ public:
     cleanup.SetObject();
 
     std::stringstream script;
-    script << "if(ctx._source.containsKey(\"" << row.mXAttrName << "\")){ ";
-    script << "ctx._source.remove(\"" << row.mXAttrName <<  "\");";
+    script << "if(ctx._source.containsKey(\"" << FileProvenanceConstants::XATTR << "\")){ ";
+    script << "if(ctx._source." << FileProvenanceConstants::XATTR << ".containsKey(\"" << row.mXAttrName << "\")){ ";
+    script << "ctx._source." << FileProvenanceConstants::XATTR << ".remove(\"" << row.mXAttrName <<  "\");";
+    script << "} else{ ctx.op=\"noop\";}";
     script << "} else{ ctx.op=\"noop\";}";
 
     rapidjson::Value scriptVal(script.str().c_str(), cleanup.GetAllocator());
@@ -95,11 +136,13 @@ public:
     //id
     rapidjson::Document op;
     op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
-    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), op.GetAllocator()), op.GetAllocator());
-
-    op.AddMember("update", opVal, op.GetAllocator());
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
+    op.AddMember("update", opVal, opAlloc);
 
     //update
     rapidjson::Document data;
@@ -107,7 +150,9 @@ public:
     rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
 
     rapidjson::Value dataVal(rapidjson::kObjectType);
+    rapidjson::Value dataValAux(rapidjson::kObjectType);
 
+    rapidjson::Value provXAttr(FileProvenanceConstants::XATTR.c_str(), dataAlloc);
     rapidjson::Value xattrKey(row.mXAttrName.c_str(), dataAlloc);
     rapidjson::Value xattr(rapidjson::kObjectType);
     rapidjson::Value xAttrAux1(val.c_str(), dataAlloc);
@@ -116,9 +161,12 @@ public:
     rapidjson::Document xattrJson(&data.GetAllocator()); 
     if(!xattrJson.Parse(val.c_str()).HasParseError()) {     
       xattr.AddMember("value", xattrJson.Move(), dataAlloc);
+    } else {
+      rapidjson::Value xAttrAux2(val.c_str(), dataAlloc);
+      xattr.AddMember("value", xAttrAux2, dataAlloc);
     }
-    dataVal.AddMember(xattrKey, xattr, dataAlloc);
-
+    dataValAux.AddMember(xattrKey, xattr, dataAlloc);
+    dataVal.AddMember(provXAttr, dataValAux, dataAlloc);
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
     //done
@@ -147,22 +195,27 @@ public:
     return out.str();
   }
 
-  static std::string deleteXAttrFromState(std::string id, FileProvenanceRow row) {
+  static std::string deleteXAttrFromState(std::string id, std::string index, FileProvenanceRow row) {
     //id
     rapidjson::Document cleanupId;
     cleanupId.SetObject();
+    rapidjson::Document::AllocatorType& cleanupAlloc = cleanupId.GetAllocator();
 
     rapidjson::Value cleanupIdVal(rapidjson::kObjectType);
-    cleanupIdVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), cleanupId.GetAllocator()), cleanupId.GetAllocator());
-    cleanupId.AddMember("update", cleanupIdVal, cleanupId.GetAllocator());
+    cleanupIdVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), cleanupAlloc), cleanupAlloc);
+    cleanupIdVal.AddMember("_type", rapidjson::Value().SetString("file_prov", cleanupAlloc), cleanupAlloc);
+    cleanupIdVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), cleanupAlloc), cleanupAlloc);
+    cleanupId.AddMember("update", cleanupIdVal, cleanupAlloc);
 
     //cleanup
     rapidjson::Document cleanup;
     cleanup.SetObject();
 
     std::stringstream script;
-    script << "if(ctx._source.containsKey(\"" << row.mXAttrName << "\")){ ";
-    script << "ctx._source.remove(\"" << row.mXAttrName <<  "\");";
+    script << "if(ctx._source.containsKey(\"" << FileProvenanceConstants::XATTR << "\")){ ";
+    script << "if(ctx._source." << FileProvenanceConstants::XATTR << ".containsKey(\"" << row.mXAttrName << "\")){ ";
+    script << "ctx._source." << FileProvenanceConstants::XATTR << ".remove(\"" << row.mXAttrName <<  "\");";
+    script << "} else{ ctx.op=\"noop\";}";
     script << "} else{ ctx.op=\"noop\";}";
 
     rapidjson::Value scriptVal(script.str().c_str(), cleanup.GetAllocator());
@@ -183,33 +236,38 @@ public:
     return out.str();
   }
 
-  static std::string deadState(std::string id) {
+  static std::string deadState(std::string id, std::string index) {
 
-    rapidjson::Document req;
-    req.SetObject();
+    rapidjson::Document op;
+    op.SetObject();
+    rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
-    rapidjson::Value idVal(rapidjson::kObjectType);
-    
-    idVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), req.GetAllocator()), req.GetAllocator());
+    rapidjson::Value opVal(rapidjson::kObjectType);
 
-    req.AddMember("delete", idVal, req.GetAllocator());
+    opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
+
+    op.AddMember("delete", opVal, opAlloc);
 
     rapidjson::StringBuffer reqBuffer;
     rapidjson::Writer<rapidjson::StringBuffer> reqWriter(reqBuffer);
-    req.Accept(reqWriter);
+    op.Accept(reqWriter);
     
     std::stringstream out;
     out << reqBuffer.GetString();
     return out.str();
   }
 
-  static std::string fileOp(std::string id, FileProvenanceRow row, std::string mlId, FileProvenanceConstants::MLType mlType) {
+  static std::string fileOp(std::string id, std::string index, FileProvenanceRow row, std::string mlId, FileProvenanceConstants::MLType mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
 
@@ -252,13 +310,15 @@ public:
     return out.str();
   }
 
-  static std::string addXAttrOp(std::string id, FileProvenanceRow row, std::string val, std::string mlId, FileProvenanceConstants::MLType mlType) {
+  static std::string addXAttrOp(std::string id, std::string index, FileProvenanceRow row, std::string val, std::string mlId, FileProvenanceConstants::MLType mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
 
@@ -267,6 +327,7 @@ public:
     rapidjson::Document::AllocatorType& dataAlloc = data.GetAllocator();
 
     rapidjson::Value dataVal(rapidjson::kObjectType);
+    rapidjson::Value dataValAux(rapidjson::kObjectType);
 
     dataVal.AddMember("inode_id",         rapidjson::Value().SetInt64(row.mInodeId), dataAlloc);
     dataVal.AddMember("inode_operation",  rapidjson::Value().SetString(row.mOperation.c_str(), dataAlloc), dataAlloc);
@@ -284,7 +345,7 @@ public:
     dataVal.AddMember("entry_type",       rapidjson::Value().SetString("operation", dataAlloc), dataAlloc);
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-     
+
     rapidjson::Value xattr(rapidjson::kObjectType);
     xattr.AddMember("raw", rapidjson::Value().SetString(val.c_str(), dataAlloc), dataAlloc);
     rapidjson::Document xattrJson(&data.GetAllocator());
@@ -292,7 +353,10 @@ public:
       xattr.AddMember("value", xattrJson.Move(), dataAlloc);
     }
     // rapidjson::Value xattrKey(row.mXAttrName.c_str(), dataAlloc);
-    dataVal.AddMember(rapidjson::Value().SetString(row.mXAttrName.c_str(), dataAlloc), xattr, dataAlloc);
+    rapidjson::Value provXAttr(FileProvenanceConstants::XATTR.c_str(), dataAlloc);
+    rapidjson::Value xattrKey(row.mXAttrName.c_str(), dataAlloc);
+    dataValAux.AddMember(xattrKey, xattr, dataAlloc);
+    dataVal.AddMember(provXAttr, dataValAux, dataAlloc);
     // dataVal.AddMember(xattrKey, xattr, dataAlloc);
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
@@ -311,13 +375,15 @@ public:
     return out.str();
   }
 
-  static std::string deleteXAttrOp(std::string id, FileProvenanceRow row, std::string mlId, FileProvenanceConstants::MLType mlType) {
+  static std::string deleteXAttrOp(std::string id, std::string index, FileProvenanceRow row, std::string mlId, FileProvenanceConstants::MLType mlType) {
     rapidjson::Document op;
     op.SetObject();
     rapidjson::Document::AllocatorType& opAlloc = op.GetAllocator();
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
+    opVal.AddMember("_type", rapidjson::Value().SetString("file_prov", opAlloc), opAlloc);
+    opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
 
@@ -343,7 +409,8 @@ public:
     dataVal.AddMember("entry_type",       rapidjson::Value().SetString("operation", dataAlloc), dataAlloc);
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-  
+    dataVal.AddMember("xattr_prov_key", rapidjson::Value().SetString(row.mXAttrName.c_str(), dataAlloc), dataAlloc);
+
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
 
@@ -388,11 +455,11 @@ public:
 };
 
 void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, eBulk& bulk) {
-  std::stringstream out;
   for (Pq::iterator it = data_batch->begin(); it != data_batch->end(); ++it) {
+    std::stringstream out;
     FileProvenanceRow row = *it;
     ProcessRowResult result = process_row(row);
-    std::list<std::string> bulkOps = boost::get<1>(result);
+    std::list<std::string> bulkOps = boost::get<0>(result);
     if(bulkOps.empty()) {
       out << FileProvenanceConstants::ELASTIC_NOP;
     } else {
@@ -400,150 +467,178 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, eBu
         out << op << std::endl;
       }
     }
-    bulk.push(mFileLogTable.getLogHandler(boost::get<2>(result), boost::get<3>(result)), row.mEventCreationTime, out.str());
+    LogHandler* lh = mFileLogTable.getLogHandler(boost::get<1>(result), boost::get<2>(result));
+    bulk.push(lh, row.mEventCreationTime, out.str());
   }
 }
 
 ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
   LOG_DEBUG("reading provenance for inode:" << row.mInodeId);
   std::list<std::string> bulkOps;
-  FileProvenanceConstants::Operation op = FileProvenanceConstants::findOp(row);
+  FileProvenanceConstants::Operation fileOp = FileProvenanceConstants::findOp(row);
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
-  FileProvenanceConstants::ProvOpStoreType provType = readProvType(row);
-  switch (op) {
+  LOG_INFO("ml type:" << mlAux.first << " inode:" << row.mInodeId << " name:" << row.mInodeName);
+  FPXAttrVersionsK datasetProvCoreKey(row.mDatasetId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTR_PROV_CORE);
+  boost::optional<FPXAttrBufferRow> datasetProvCoreRow = getProvCore(datasetProvCoreKey);
+  boost::optional<FileProvenanceConstants::ProvOpStoreType> datasetProvCore;
+  boost::optional<Int64> projectIId;
+  std::string projectIndex;
+  if(datasetProvCoreRow) {
+    std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> pc = FileProvenanceConstants::provCore(datasetProvCoreRow.get().mValue);
+    datasetProvCore = pc.first;
+    projectIId = pc.second;
+  } else {
+    datasetProvCore = boost::none;
+    projectIId = boost::none;
+  }
+  if(row.mProjectId != -1) {
+    projectIndex = FileProvenanceConstants::projectIndex(row.mProjectId);
+  } else if(projectIId) {
+    projectIndex = FileProvenanceConstants::projectIndex(projectIId.get());
+    row.mProjectId = projectIId.get();
+  } else {
+    std::stringstream cause;
+    cause << "no project id" << row.to_string();
+    LOG_ERROR(cause.str());
+    throw std::logic_error(cause.str());
+  }
+
+  switch (fileOp) {
     case FileProvenanceConstants::Operation::OP_CREATE: {
       switch (mlAux.first) {
-        case FileProvenanceConstants::MLType::MODEL:
+        case FileProvenanceConstants::MLType::DATASET:
+        case FileProvenanceConstants::MLType::HIVE:
         case FileProvenanceConstants::MLType::FEATURE:
         case FileProvenanceConstants::MLType::TRAINING_DATASET:
         case FileProvenanceConstants::MLType::EXPERIMENT:
-        case FileProvenanceConstants::MLType::DATASET: {
-          std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlAux.second, mlAux.first);
+        case FileProvenanceConstants::MLType::MODEL: {
+          std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row, mlAux.second, mlAux.first);
           bulkOps.push_back(state);
         } break;
         default: ;break; //do nothing
       }
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
         bulkOps.push_back(op);
       }
+      return boost::make_tuple(bulkOps, row.getPK(), boost::none);
     } break;
     case FileProvenanceConstants::Operation::OP_DELETE: {
       switch (mlAux.first) {
-        case FileProvenanceConstants::MLType::MODEL:
+        case FileProvenanceConstants::MLType::DATASET:
+        case FileProvenanceConstants::MLType::HIVE:
         case FileProvenanceConstants::MLType::FEATURE:
         case FileProvenanceConstants::MLType::TRAINING_DATASET:
         case FileProvenanceConstants::MLType::EXPERIMENT:
-        case FileProvenanceConstants::MLType::DATASET: {
-          std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row));
+        case FileProvenanceConstants::MLType::MODEL: {
+          std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
           bulkOps.push_back(state);
         } break;
         default: ;break; //do nothing
       }
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
         bulkOps.push_back(op);
+      }
+      if(row.mInodeId == row.mDatasetId) {
+        return boost::make_tuple(bulkOps, row.getPK(), datasetProvCoreRow.get().getPK());
+      } else {
+        return boost::make_tuple(bulkOps, row.getPK(), boost::none);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_MODIFY_DATA:
     case FileProvenanceConstants::Operation::OP_ACCESS_DATA: {
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
         bulkOps.push_back(op);
       }
+      return boost::make_tuple(bulkOps, row.getPK(), boost::none);
     } break;
     case FileProvenanceConstants::Operation::OP_XATTR_ADD:
     case FileProvenanceConstants::Operation::OP_XATTR_UPDATE: {
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
       FPXAttrBufferRow xattr = readBufferedXAttr(xattrBufferKey);
-      if(row.mXAttrName == FileProvenanceConstants::PROV_TYPE) {
-        FileProvenanceConstants::ProvOpStoreType provTypeLog = FileProvenanceConstants::provType(xattr.mValue);
-        if (provType != provTypeLog) {
-          LOG_ERROR("prov type logic error, key:" << xattrBufferKey.to_string());
-          std::stringstream cause;
-          cause << "prov type logic error, key:" << xattrBufferKey.to_string();
-          throw std::logic_error(cause.str());
-        }
-        switch (provType) {
+      if(row.mXAttrName == FileProvenanceConstants::XATTR_PROV_CORE) {
+        std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> opProvCore = FileProvenanceConstants::provCore(xattr.mValue);
+        switch (opProvCore.first) {
           case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: {
-            std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row));
+            std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
             bulkOps.push_back(state);
           } break;
           case FileProvenanceConstants::ProvOpStoreType::STORE_STATE:
           case FileProvenanceConstants::ProvOpStoreType::STORE_ALL: {
-            std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), row, mlAux.second, mlAux.first);
+            std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row, mlAux.second, mlAux.first);
             bulkOps.push_back(state);
           } break;
           default: {
-            LOG_ERROR("prov state - xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(provType));
             std::stringstream cause;
-            cause << "prov state - xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(provType);
+            cause << "prov state - xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(opProvCore.first);
+            LOG_ERROR(cause.str());
             throw std::logic_error(cause.str());
           }
         }
+        datasetProvCore = opProvCore.first;
       }
       switch (mlAux.first) {
-        case FileProvenanceConstants::MLType::DATASET:
+        case FileProvenanceConstants::MLType::FEATURE:
+        case FileProvenanceConstants::MLType::TRAINING_DATASET:
         case FileProvenanceConstants::MLType::EXPERIMENT:
         case FileProvenanceConstants::MLType::MODEL:
-        case FileProvenanceConstants::MLType::TRAINING_DATASET:
-        case FileProvenanceConstants::MLType::FEATURE: {
-         switch(provType) {
-           case FileProvenanceConstants::ProvOpStoreType::STORE_ALL:
-           case FileProvenanceConstants::ProvOpStoreType::STORE_STATE: {
-             std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), row, xattr.mValue);
-             bulkOps.push_back(xattrStateVal);
-           } break;
-           case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: break;
-           default: {
-             LOG_ERROR("xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(provType));
-             std::stringstream cause;
-             cause << "xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(provType);
-             throw std::logic_error(cause.str());
-           }
-         }
-         } break;
+        case FileProvenanceConstants::MLType::HIVE:
+        case FileProvenanceConstants::MLType::DATASET: {
+          if(datasetProvCore) {
+            FileProvenanceConstants::ProvOpStoreType provType = datasetProvCore.get();
+            switch(provType) {
+             case FileProvenanceConstants::ProvOpStoreType::STORE_ALL:
+             case FileProvenanceConstants::ProvOpStoreType::STORE_STATE: {
+               if(row.mXAttrName == FileProvenanceConstants::XATTR_PROJECT_IID) {
+                 std::string projIIdStateVal = ElasticHelper::addProjectIIdToState(ElasticHelper::stateId(row), projectIndex, row);
+                 bulkOps.push_back(projIIdStateVal);
+               }
+               std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), projectIndex, row, xattr.mValue);
+               bulkOps.push_back(xattrStateVal);
+             } break;
+             case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: break;
+             default: {
+               std::stringstream cause;
+               cause << "xattr add/update - add to state - ProvOpStoreType not handled" << FileProvenanceConstants::provOpStoreTypeToStr(provType);
+               LOG_ERROR(cause.str());
+               throw std::logic_error(cause.str());
+             }
+            }
+          }
+        } break;
       }
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string xattrOpVal = ElasticHelper::addXAttrOp(ElasticHelper::opId(row), row, xattr.mValue, mlAux.second, mlAux.first);
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+        std::string xattrOpVal = ElasticHelper::addXAttrOp(ElasticHelper::opId(row), projectIndex, row, xattr.mValue, mlAux.second, mlAux.first);
         bulkOps.push_back(xattrOpVal);
+      }
+      if(row.mXAttrName == FileProvenanceConstants::XATTR_PROV_CORE) {
+        FPXAttrBufferPK provCorePK = datasetProvCoreRow.get().getPK();
+        if(provCorePK.mInodeLogicalTime < xattrBufferKey.mInodeLogicalTime) {
+          return boost::make_tuple(bulkOps, row.getPK(), provCorePK);
+        } else {
+          return boost::make_tuple(bulkOps, row.getPK(), boost::none);
+        }
+      } else {
+        return boost::make_tuple(bulkOps, row.getPK(), xattrBufferKey);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_XATTR_DELETE: {
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
-      std::string xattrStateVal = ElasticHelper::deleteXAttrFromState(ElasticHelper::stateId(row), row);
+      std::string xattrStateVal = ElasticHelper::deleteXAttrFromState(ElasticHelper::stateId(row), projectIndex, row);
       bulkOps.push_back(xattrStateVal);
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string xattrOpVal = ElasticHelper::deleteXAttrOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+        std::string xattrOpVal = ElasticHelper::deleteXAttrOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
         bulkOps.push_back(xattrOpVal);
       }
+      return boost::make_tuple(bulkOps, row.getPK(), xattrBufferKey);
     } break;
     default: {
       LOG_WARN("operation not implemented:" << row.mOperation);
       std::stringstream cause;
       cause << "operation not implemented:" << row.mOperation;
       throw std::logic_error(cause.str());
-    }
-  }
-  //cleanup - nop
-  switch (op) {
-    case FileProvenanceConstants::Operation::OP_CREATE:
-    case FileProvenanceConstants::Operation::OP_DELETE:
-    case FileProvenanceConstants::Operation::OP_MODIFY_DATA:
-    case FileProvenanceConstants::Operation::OP_ACCESS_DATA: {
-      return boost::make_tuple("index", bulkOps, row.getPK(), boost::none);
-    } break;
-    case FileProvenanceConstants::Operation::OP_XATTR_ADD:
-    case FileProvenanceConstants::Operation::OP_XATTR_UPDATE:
-    case FileProvenanceConstants::Operation::OP_XATTR_DELETE: {
-      FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
-      return boost::make_tuple("index", bulkOps, row.getPK(), xattrBufferKey);
-    } break;
-    default: {
-      LOG_WARN("operation not stored:" << row.mOperation);
-      std::stringstream cause;
-      cause << "operation not stored:" << row.mOperation;
-      throw std::logic_error(cause.str());;
     }
   }
 }
@@ -559,35 +654,16 @@ FPXAttrBufferRow FileProvenanceElasticDataReader::readBufferedXAttr(FPXAttrBuffe
   return xAttrBufferVal.get();
 }
 
-FileProvenanceConstants::ProvOpStoreType FileProvenanceElasticDataReader::readProvType(FileProvenanceRow row) {
-  FPXAttrBufferPK provTypeKey(row.mDatasetId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::PROV_TYPE, row.mDatasetLogicalTime);
-  boost::optional<std::string> provTypeS = getProvXAttr(provTypeKey);
-  FileProvenanceConstants::ProvOpStoreType provType;
-  if(provTypeS) {
-    provType = FileProvenanceConstants::provType(provTypeS.get());
-  } else {
-    LOG_WARN("no prov type detected - using default - dataset:" << row.mDatasetId);
-    provType = FileProvenanceConstants::ProvOpStoreType::STORE_NONE;
+boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(FPXAttrVersionsK versionsKey) {
+  std::vector<FPXAttrBufferRow> xattrVersions = mXAttrBuffer.get(mNdbConnection, versionsKey);
+  std::sort(xattrVersions.begin(), xattrVersions.end(),
+            [](FPXAttrBufferRow a, FPXAttrBufferRow b) {return a.mInodeLogicalTime > b.mInodeLogicalTime; });
+  if(xattrVersions.size() == 0) {
+    LOG_WARN("no xattr for key:" << versionsKey.to_string());
+    return boost::none;
   }
-  return provType;
-}
-
-boost::optional<std::string> FileProvenanceElasticDataReader::getProvXAttr(FPXAttrBufferPK xattrBufferKey) {
-  //it is important to get them in this order - possible concurrent issue when the value you want might be updated while this is ongoing
-  //possible issue readLog(V), readXBuffer(V), updateX(V-V'), readX(you read V' and V is in buffer now)
-  XAttrPK xattrKey(xattrBufferKey.mInodeId, xattrBufferKey.mNamespace, xattrBufferKey.mName);
-  boost::optional<XAttrRow> xattr = mXAttr.get(mNdbConnection, xattrKey);
-  boost::optional<FPXAttrBufferRow> xattrBuffer = mXAttrBuffer.get(mNdbConnection, xattrBufferKey);
-  if(xattrBuffer) {
-    return xattrBuffer.get().mValue;
-  }
-  if(xattr) {
-    return xattr.get().mValue;
-  }
-  LOG_WARN("no xattr for key:" << xattrBufferKey.to_string());
-  return boost::none;
+  return xattrVersions.front();
 }
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {
-  
 }

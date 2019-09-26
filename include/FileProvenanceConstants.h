@@ -25,25 +25,28 @@
 
 namespace FileProvenanceConstants {
 
-  const std::string XATTRS_ML_ID = "ml_id";
-  const std::string XATTRS_FEATURES = "features";
-  const std::string XATTRS_TRAINING_DATASETS = "training_datasets";
   const Int8 XATTRS_USER_NAMESPACE = 5;
   const std::string README_FILE = "README.md";
   
-  const std::string ML_TYPE_NONE = "NONE";
+  const std::string TYPE_NONE = "NONE";
   const std::string TYPE_DATASET = "DATASET";
-  const std::string ML_TYPE_ERR = "ERR";
-  const std::string ML_TYPE_MODEL = "MODEL";
-  const std::string ML_TYPE_MODEL_PART = "MODEL_PART";
+  const std::string TYPE_HIVE = "HIVE";
+  const std::string TYPE_HIVE_PART = "HIVE_PART";
+
   const std::string ML_TYPE_FEATURE = "FEATURE";
   const std::string ML_TYPE_FEATURE_PART = "FEATURE_PART";
   const std::string ML_TYPE_TDATASET = "TRAINING_DATASET";
   const std::string ML_TYPE_TDATASET_PART = "TRAINING_DATASET_PART";
   const std::string ML_TYPE_EXPERIMENT = "EXPERIMENT";
   const std::string ML_TYPE_EXPERIMENT_PART = "EXPERIMENT_PART";
+  const std::string ML_TYPE_MODEL = "MODEL";
+  const std::string ML_TYPE_MODEL_PART = "MODEL_PART";
 
-  const std::string PROV_TYPE = "prov_type";
+  const std::string XATTR = "xattr_prov";
+
+  const std::string XATTR_PROV_CORE = "core";
+  const std::string XATTR_PROJECT_IID = "project_iid";
+
   const std::string PROV_TYPE_STORE_NONE = "NONE";
   const std::string PROV_TYPE_STORE_STATE = "STATE";
   const std::string PROV_TYPE_STORE_ALL = "ALL";
@@ -51,15 +54,17 @@ namespace FileProvenanceConstants {
     NONE,
     DATASET,
 
-    MODEL,
+    HIVE,
     FEATURE,
     TRAINING_DATASET,
     EXPERIMENT,
+    MODEL,
 
-    MODEL_PART,
+    HIVE_PART,
     FEATURE_PART,
     TRAINING_DATASET_PART,
-    EXPERIMENT_PART
+    EXPERIMENT_PART,
+    MODEL_PART
   };
 
   enum ProvOpStoreType {
@@ -71,27 +76,31 @@ namespace FileProvenanceConstants {
   inline static const std::string MLTypeToStr(MLType mlType) {
     switch (mlType) {
       case NONE:
-        return ML_TYPE_NONE;
+        return TYPE_NONE;
       case DATASET:
         return TYPE_DATASET;
-      case MODEL:
-        return ML_TYPE_MODEL;
+      case HIVE:
+        return TYPE_HIVE;
       case FEATURE:
         return ML_TYPE_FEATURE;
       case TRAINING_DATASET:
         return ML_TYPE_TDATASET;
       case EXPERIMENT:
         return ML_TYPE_EXPERIMENT;
-      case MODEL_PART:
-        return ML_TYPE_MODEL_PART;
+      case MODEL:
+        return ML_TYPE_MODEL;
+      case HIVE_PART:
+        return TYPE_HIVE_PART;
       case FEATURE_PART:
         return ML_TYPE_FEATURE_PART;
       case TRAINING_DATASET_PART:
         return ML_TYPE_TDATASET_PART;
       case EXPERIMENT_PART:
         return ML_TYPE_EXPERIMENT_PART;
+      case MODEL_PART:
+        return ML_TYPE_MODEL_PART;
       default:
-        return ML_TYPE_NONE;
+        return TYPE_NONE;
     }
   };
 
@@ -106,6 +115,7 @@ namespace FileProvenanceConstants {
   const std::string H_OP_OTHER = "OTHER";
 
   const std::string ELASTIC_NOP = "\n";
+  const std::string ELASTIC_NOP2 = "\n\n";
 
   enum Operation {
     OP_CREATE,
@@ -135,7 +145,7 @@ namespace FileProvenanceConstants {
       LOG_WARN("no such operation:" << row.mOperation);
       std::stringstream cause;
       cause << "no such operation:" << row.mOperation;
-      throw cause.str();
+      throw std::logic_error(cause.str());
     }
     return ops.at(row.mOperation);
   }
@@ -147,7 +157,7 @@ namespace FileProvenanceConstants {
   }
 
   inline bool twoLvlDeep(FileProvenanceRow row) {
-    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name == "";
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "" && row.mP2Name == "";
   }
 
   inline bool onePlusLvlDeep(FileProvenanceRow row) {
@@ -155,7 +165,7 @@ namespace FileProvenanceConstants {
   }
 
   inline bool twoPlusLvlDeep(FileProvenanceRow row) {
-    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "";
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "" && row.mP2Name != "";
   }
 
   inline std::string twoNameForAsset(FileProvenanceRow row) {
@@ -187,10 +197,9 @@ namespace FileProvenanceConstants {
   inline bool isDataset(FileProvenanceRow row) {
     return row.mDatasetId == row.mInodeId;
   }
+
   inline bool isDatasetName1(FileProvenanceRow row, std::string part) {
-    std::stringstream  mlDataset;
-    mlDataset << part;
-    return row.mDatasetName == mlDataset.str();
+    return row.mDatasetName == part;
   }
 
   inline bool isDatasetName2(FileProvenanceRow row, std::string part) {
@@ -219,12 +228,28 @@ namespace FileProvenanceConstants {
     return twoNameForPart(row);
   }
 
+  inline bool typeHive(FileProvenanceRow row) {
+    return row.mProjectId == -1 && row.mDatasetName == row.mProjectName + ".db";
+  }
+
+  inline bool isHive(FileProvenanceRow row) {
+    return typeHive(row) && row.mDatasetId == row.mParentId;
+  }
+
+  inline bool partOfHive(FileProvenanceRow row) {
+    return typeHive(row) && row.mDatasetId != row.mParentId;
+  }
+
+  inline bool typeMLFeature(FileProvenanceRow row) {
+    return row.mProjectId == -1 && row.mDatasetName == row.mProjectName + "_featurestore.db";
+  }
+
   inline bool isMLFeature(FileProvenanceRow row) {
-    return isDatasetName2(row, "featurestore.db") && oneLvlDeep(row);
+    return typeMLFeature(row) && row.mDatasetId == row.mParentId;
   }
 
   inline bool partOfMLFeature(FileProvenanceRow row) {
-    return isDatasetName2(row, "featurestore.db") && onePlusLvlDeep(row);
+    return typeMLFeature(row) && row.mDatasetId != row.mParentId;
   }
 
   inline std::string getMLFeatureId(FileProvenanceRow row) {
@@ -254,6 +279,7 @@ namespace FileProvenanceConstants {
   inline bool isMLExperimentName(std::string name) {
     std::vector<std::string> strs;
     boost::split(strs,name,boost::is_any_of("_"));
+    LOG_INFO("name:" << name << " size:" << strs.size());
     return boost::starts_with(name, "application_") && strs.size() == 4;
   }
 
@@ -281,33 +307,39 @@ namespace FileProvenanceConstants {
     if(isReadmeFile(row)) {
       mlType = MLType::NONE;
       mlId = "";
-    } else if(isDataset(row)) {
-      mlType = MLType::DATASET;
-      mlId = "";
-    } else if(isMLModel(row)) {
-      mlType = MLType::MODEL;
-      mlId = getMLModelId(row);
-    } else if(isMLTDataset(row)) {
-      mlType = MLType::TRAINING_DATASET;
-      mlId = getMLTDatasetId(row);
     } else if(isMLFeature(row)) {
       mlType = MLType::FEATURE;
       mlId = getMLFeatureId(row);
+    } else if(isMLTDataset(row)) {
+      mlType = MLType::TRAINING_DATASET;
+      mlId = getMLTDatasetId(row);
     } else if(isMLExperiment(row)) {
       mlType = MLType::EXPERIMENT;
       mlId = getMLExperimentId(row);
-    } else if(partOfMLModel(row)) {
-      mlType = MLType::MODEL_PART;
-      mlId = getMLModelParentId(row);
-    } else if(partOfMLTDataset(row)) {
-      mlType = MLType::TRAINING_DATASET_PART;
-      mlId = getMLTDatasetParentId(row);
+    } else if(isMLModel(row)) {
+      mlType = MLType::MODEL;
+      mlId = getMLModelId(row);
+    } else if(isHive(row)) {
+      mlType = MLType::HIVE;
+      mlId = "";
+    } else if(isDataset(row)) {
+      mlType = MLType::DATASET;
+      mlId = "";
     } else if(partOfMLFeature(row)) {
       mlType = MLType::FEATURE_PART;
       mlId = getMLFeatureParentId(row);
+    } else if(partOfMLTDataset(row)) {
+      mlType = MLType::TRAINING_DATASET_PART;
+      mlId = getMLTDatasetParentId(row);
     } else if(partOfMLExperiment(row)) {
       mlType = MLType::EXPERIMENT_PART;
       mlId = getMLExperimentParentId(row);
+    } else if(partOfMLModel(row)) {
+      mlType = MLType::MODEL_PART;
+      mlId = getMLModelParentId(row);
+    } else if(partOfHive(row)) {
+      mlType = MLType::HIVE_PART;
+      mlId = "";
     } else {
       mlType = MLType::NONE;
       mlId = "";
@@ -315,27 +347,28 @@ namespace FileProvenanceConstants {
     return std::make_pair(mlType, mlId);
   }
 
-  inline ProvOpStoreType provType(std::string dsProvType) {
+  inline std::pair<ProvOpStoreType, Int64> provCore(std::string dsProvType) {
     rapidjson::Document provTypeDoc;
     if(provTypeDoc.Parse(dsProvType.c_str()).HasParseError()) {
       LOG_WARN("prov type could not be parsed:" << dsProvType);
       std::stringstream cause;
       cause << "prov type could not be parsed:" << dsProvType;
-      throw cause.str();
+      throw std::logic_error(cause.str());
     } else {
-      std::string provType = provTypeDoc["provStatus"].GetString();
+      Int64 projectIID = provTypeDoc["project_iid"].GetInt64();
+      std::string provType = provTypeDoc["prov_type"]["prov_status"].GetString();
       boost::to_upper(provType);
       if(provType == PROV_TYPE_STORE_STATE) {
-        return ProvOpStoreType::STORE_STATE;
+        return std::make_pair(ProvOpStoreType::STORE_STATE, projectIID);
       } else if(provType == PROV_TYPE_STORE_ALL) {
-        return ProvOpStoreType::STORE_ALL;
+        return std::make_pair(ProvOpStoreType::STORE_ALL, projectIID);
       } else if(provType == PROV_TYPE_STORE_NONE) {
-        return ProvOpStoreType::STORE_NONE;
+        return std::make_pair(ProvOpStoreType::STORE_NONE, projectIID);
       } else {
         LOG_WARN("prov type not recognized:" << provType);
         std::stringstream cause;
         cause << "prov type not recognized:" << provType;
-        throw cause.str();
+        throw std::logic_error(cause.str());
       }
     }
   }
@@ -349,11 +382,14 @@ namespace FileProvenanceConstants {
         LOG_ERROR("ProvOpStoreType to string - enum not handled");
         std::stringstream cause;
         cause << "ProvOpStoreType to string - enum not handled";
-        throw cause.str();
+        throw std::logic_error(cause.str());
       }
     }
   }
 
+  inline static const std::string projectIndex(Int64 projectIId) {
+    return std::to_string(projectIId) + "__file_prov";
+  }
 }
 
 #endif /* FILEPROVENANCECONSTANTS_H */
