@@ -43,18 +43,19 @@ namespace FileProvenanceConstants {
   const std::string ML_TYPE_EXPERIMENT = "EXPERIMENT";
   const std::string ML_TYPE_EXPERIMENT_PART = "EXPERIMENT_PART";
 
-  const std::string PROV_TYPE = "prov_type";
+  const std::string PROV_CORE = "prov_core";
   const std::string PROV_TYPE_STORE_NONE = "NONE";
   const std::string PROV_TYPE_STORE_STATE = "STATE";
   const std::string PROV_TYPE_STORE_ALL = "ALL";
   enum MLType {
     NONE,
     DATASET,
+    HIVE,
 
-    MODEL,
     FEATURE,
     TRAINING_DATASET,
     EXPERIMENT,
+    MODEL,
 
     MODEL_PART,
     FEATURE_PART,
@@ -315,7 +316,7 @@ namespace FileProvenanceConstants {
     return std::make_pair(mlType, mlId);
   }
 
-  inline ProvOpStoreType provType(std::string dsProvType) {
+  inline std::pair<ProvOpStoreType, Int64> provCore(std::string dsProvType) {
     rapidjson::Document provTypeDoc;
     if(provTypeDoc.Parse(dsProvType.c_str()).HasParseError()) {
       LOG_WARN("prov type could not be parsed:" << dsProvType);
@@ -323,14 +324,15 @@ namespace FileProvenanceConstants {
       cause << "prov type could not be parsed:" << dsProvType;
       throw cause.str();
     } else {
-      std::string provType = provTypeDoc["provStatus"].GetString();
+      Int64 projectIID = provTypeDoc["project_iid"].GetInt64();
+      std::string provType = provTypeDoc["prov_type"]["prov_status"].GetString();
       boost::to_upper(provType);
       if(provType == PROV_TYPE_STORE_STATE) {
-        return ProvOpStoreType::STORE_STATE;
+        return std::make_pair(ProvOpStoreType::STORE_STATE, projectIID);
       } else if(provType == PROV_TYPE_STORE_ALL) {
-        return ProvOpStoreType::STORE_ALL;
+        return std::make_pair(ProvOpStoreType::STORE_ALL, projectIID);
       } else if(provType == PROV_TYPE_STORE_NONE) {
-        return ProvOpStoreType::STORE_NONE;
+        return std::make_pair(ProvOpStoreType::STORE_NONE, projectIID);
       } else {
         LOG_WARN("prov type not recognized:" << provType);
         std::stringstream cause;

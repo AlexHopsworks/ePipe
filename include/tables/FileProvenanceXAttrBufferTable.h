@@ -39,6 +39,24 @@ struct FPXAttrBufferPK {
   }
 };
 
+struct FPXAttrVersionsK {
+  Int64 mInodeId;
+  Int8 mNamespace;
+  std::string mName;
+
+  FPXAttrVersionsK(Int64 inodeId, Int8 ns, std::string name) {
+    mInodeId = inodeId;
+    mNamespace = ns;
+    mName = name;
+  }
+
+  std::string to_string() {
+    std::stringstream out;
+    out << mInodeId << "-" << mNamespace << "-" << mName;
+    return out.str();
+  }
+};
+
 struct FPXAttrBufferRow {
   Int64 mInodeId;
   Int8 mNamespace;
@@ -100,6 +118,14 @@ public:
     } else {
       return boost::none;
     }
+  }
+
+  std::vector<FPXAttrBufferRow> get(Ndb* connection, FPXAttrVersionsK key) {
+    AnyMap a;
+    a[0] = key.mInodeId;
+    a[1] = key.mNamespace;
+    a[2] = key.mName;
+    return DBTable<FPXAttrBufferRow>::doRead(connection, "xattr_versions", a);
   }
 
   private:

@@ -409,7 +409,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
   std::list<std::string> bulkOps;
   FileProvenanceConstants::Operation op = FileProvenanceConstants::findOp(row);
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
-  FileProvenanceConstants::ProvOpStoreType provType = readProvType(row);
+  boost::optional<FileProvenanceConstants::ProvOpStoreType> datasetProvCore = datasetProvCore(row);
   switch (op) {
     case FileProvenanceConstants::Operation::OP_CREATE: {
       switch (mlAux.first) {
@@ -423,7 +423,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
         } break;
         default: ;break; //do nothing
       }
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
         bulkOps.push_back(op);
       }
@@ -440,14 +440,14 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
         } break;
         default: ;break; //do nothing
       }
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
         bulkOps.push_back(op);
       }
     } break;
     case FileProvenanceConstants::Operation::OP_MODIFY_DATA:
     case FileProvenanceConstants::Operation::OP_ACCESS_DATA: {
-      if (provType == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
+      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
         std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), row, mlAux.second, mlAux.first);
         bulkOps.push_back(op);
       }
@@ -456,15 +456,9 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
     case FileProvenanceConstants::Operation::OP_XATTR_UPDATE: {
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
       FPXAttrBufferRow xattr = readBufferedXAttr(xattrBufferKey);
-      if(row.mXAttrName == FileProvenanceConstants::PROV_TYPE) {
-        FileProvenanceConstants::ProvOpStoreType provTypeLog = FileProvenanceConstants::provType(xattr.mValue);
-        if (provType != provTypeLog) {
-          LOG_ERROR("prov type logic error, key:" << xattrBufferKey.to_string());
-          std::stringstream cause;
-          cause << "prov type logic error, key:" << xattrBufferKey.to_string();
-          throw std::logic_error(cause.str());
-        }
-        switch (provType) {
+      if(row.mXAttrName == FileProvenanceConstants::PROV_CORE) {
+        std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> opProvCore = FileProvenanceConstants::provCore(xattr.mValue);
+        switch (opProvCore.first) {
           case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: {
             std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row));
             bulkOps.push_back(state);
@@ -484,11 +478,12 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
       }
       switch (mlAux.first) {
         case FileProvenanceConstants::MLType::DATASET:
-        case FileProvenanceConstants::MLType::EXPERIMENT:
-        case FileProvenanceConstants::MLType::MODEL:
+        case FileProvenanceConstants::MLType::HIVE:
+        case FileProvenanceConstants::MLType::FEATURE:
         case FileProvenanceConstants::MLType::TRAINING_DATASET:
-        case FileProvenanceConstants::MLType::FEATURE: {
-         switch(provType) {
+        case FileProvenanceConstants::MLType::EXPERIMENT:
+        case FileProvenanceConstants::MLType::MODEL:{
+         switch(opProvCore.get().first) {
            case FileProvenanceConstants::ProvOpStoreType::STORE_ALL:
            case FileProvenanceConstants::ProvOpStoreType::STORE_STATE: {
              std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), row, xattr.mValue);
@@ -559,33 +554,26 @@ FPXAttrBufferRow FileProvenanceElasticDataReader::readBufferedXAttr(FPXAttrBuffe
   return xAttrBufferVal.get();
 }
 
-FileProvenanceConstants::ProvOpStoreType FileProvenanceElasticDataReader::readProvType(FileProvenanceRow row) {
-  FPXAttrBufferPK provTypeKey(row.mDatasetId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::PROV_TYPE, row.mDatasetLogicalTime);
-  boost::optional<std::string> provTypeS = getProvXAttr(provTypeKey);
-  FileProvenanceConstants::ProvOpStoreType provType;
-  if(provTypeS) {
-    provType = FileProvenanceConstants::provType(provTypeS.get());
+boost::optional<FileProvenanceConstants::ProvOpStoreType> FileProvenanceElasticDataReader::datasetProvCore(Int64 datasetId) {
+  FPXAttrVersionsK provTypeKey(datasetId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::PROV_CORE);
+  boost::optional<FPXAttrBufferRow> provCore = getProvCore(provTypeKey);
+  if(provCore) {
+    return FileProvenanceConstants::provCore(provCore.get().mValue).first;
   } else {
-    LOG_WARN("no prov type detected - using default - dataset:" << row.mDatasetId);
-    provType = FileProvenanceConstants::ProvOpStoreType::STORE_NONE;
+    LOG_WARN("no prov type detected - dataset:" << datasetId);
+    return boost::none;
   }
-  return provType;
 }
 
-boost::optional<std::string> FileProvenanceElasticDataReader::getProvXAttr(FPXAttrBufferPK xattrBufferKey) {
-  //it is important to get them in this order - possible concurrent issue when the value you want might be updated while this is ongoing
-  //possible issue readLog(V), readXBuffer(V), updateX(V-V'), readX(you read V' and V is in buffer now)
-  XAttrPK xattrKey(xattrBufferKey.mInodeId, xattrBufferKey.mNamespace, xattrBufferKey.mName);
-  boost::optional<XAttrRow> xattr = mXAttr.get(mNdbConnection, xattrKey);
-  boost::optional<FPXAttrBufferRow> xattrBuffer = mXAttrBuffer.get(mNdbConnection, xattrBufferKey);
-  if(xattrBuffer) {
-    return xattrBuffer.get().mValue;
+boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(FPXAttrVersionsK versionsKey) {
+  std::vector<FPXAttrBufferRow> xattrVersions = mXAttrBuffer.get(mNdbConnection, versionsKey);
+  std::sort(xattrVersions.begin(), xattrVersions.end(),
+      [](FPXAttrBufferRow a, FPXAttrBufferRow b) {return a.mInodeLogicalTime > b.mInodeLogicalTime; });
+  if(xattrVersions.size() == 0) {
+    LOG_WARN("no xattr for key:" << versionsKey.to_string());
+    return boost::none;
   }
-  if(xattr) {
-    return xattr.get().mValue;
-  }
-  LOG_WARN("no xattr for key:" << xattrBufferKey.to_string());
-  return boost::none;
+  return xattrVersions.front();
 }
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {
