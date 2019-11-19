@@ -483,6 +483,9 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
   boost::optional<FileProvenanceConstants::ProvOpStoreType> datasetProvCore;
   boost::optional<Int64> projectIId;
   std::string projectIndex;
+  if(row.mProjectId == -1) {
+    return boost::make_tuple(bulkOps, row.getPK(), boost::none);
+  }
   if(datasetProvCoreRow) {
     std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> pc = FileProvenanceConstants::provCore(datasetProvCoreRow.get().mValue);
     datasetProvCore = pc.first;
@@ -496,11 +499,13 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
   } else if(projectIId) {
     projectIndex = FileProvenanceConstants::projectIndex(projectIId.get());
     row.mProjectId = projectIId.get();
+    return boost::make_tuple(bulkOps, row.getPK(), boost::none);
   } else {
-    std::stringstream cause;
-    cause << "no project id" << row.to_string();
-    LOG_ERROR(cause.str());
-    throw std::logic_error(cause.str());
+//    std::stringstream cause;
+//    cause << "no project id" << row.to_string();
+//    LOG_ERROR(cause.str());
+//    throw std::logic_error(cause.str());
+    return boost::make_tuple(bulkOps, row.getPK(), boost::none);
   }
 
   switch (fileOp) {
