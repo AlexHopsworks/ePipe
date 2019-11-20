@@ -39,6 +39,10 @@ struct TemplateRow {
     scriptStream << "} else{ ctx.op=\"noop\";}";
     docWriter.String(scriptStream.str().c_str());
 
+    docWriter.String("upsert");
+    docWriter.StartObject();
+    docWriter.EndObject();
+    
     docWriter.EndObject();
 
     return std::string(sbDoc.GetString());
