@@ -33,19 +33,23 @@ struct FileProvenancePK {
   Int64 mTimestamp;
   std::string mAppId;
   int mUserId;
+  std::string mTieBreaker;
   
-  FileProvenancePK(Int64 inodeId, std::string operation, int logicalTime, Int64 timestamp, std::string appId, int userId) {
+  FileProvenancePK(Int64 inodeId, std::string operation, int logicalTime, Int64 timestamp, std::string appId,
+      int userId, std::string tieBreaker) {
     mInodeId = inodeId;
     mOperation = operation;
     mLogicalTime = logicalTime;
     mTimestamp = timestamp;
     mAppId = appId;
     mUserId = userId;
+    mTieBreaker = tieBreaker;
   }
 
   std::string to_string() const {
     std::stringstream out;
-    out << mInodeId << "-" << mOperation << "-" << mLogicalTime << "-" << mTimestamp << "-" << mAppId << "-" << mUserId;
+    out << mInodeId << "-" << mOperation << "-" << mLogicalTime << "-" << mTimestamp << "-" << mAppId << "-" << mUserId
+    <<"-"<<mTieBreaker;
     return out.str();
   }
 };
@@ -57,6 +61,7 @@ struct FileProvenanceRow {
   Int64 mTimestamp;
   std::string mAppId;
   int mUserId;
+  std::string mTieBreaker;
   
   Int64 mPartitionId;
   Int64 mProjectId;
@@ -77,7 +82,7 @@ struct FileProvenanceRow {
   ptime mEventCreationTime;
 
   FileProvenancePK getPK() {
-    return FileProvenancePK(mInodeId, mOperation, mLogicalTime, mTimestamp, mAppId, mUserId);
+    return FileProvenancePK(mInodeId, mOperation, mLogicalTime, mTimestamp, mAppId, mUserId, mTieBreaker);
   }
 
   std::string to_string() {
@@ -89,6 +94,7 @@ struct FileProvenanceRow {
     stream << "Timestamp = " << mTimestamp << std::endl;
     stream << "AppId = " << mAppId << std::endl;
     stream << "UserId = " << mUserId << std::endl;
+    stream << "TieBreaker = " << mTieBreaker << std::endl;
     
     stream << "PartitionId = " << mPartitionId << std::endl;
     stream << "ProjectId = " << mProjectId << std::endl;
@@ -114,7 +120,8 @@ struct FileProvenanceRowEqual {
 
   bool operator()(const FileProvenanceRow &lhs, const FileProvenanceRow &rhs) const {
     return lhs.mInodeId == rhs.mInodeId && lhs.mUserId == rhs.mUserId
-            && lhs.mAppId == rhs.mAppId && lhs.mLogicalTime == rhs.mLogicalTime;
+            && lhs.mAppId == rhs.mAppId && lhs.mLogicalTime == rhs.mLogicalTime
+            && lhs.mTieBreaker == rhs.mTieBreaker;
   }
 };
 
@@ -128,6 +135,7 @@ struct FileProvenanceRowHash {
     boost::hash_combine(seed, a.mTimestamp);
     boost::hash_combine(seed, a.mAppId);
     boost::hash_combine(seed, a.mUserId);
+    boost::hash_combine(seed, a.mTieBreaker);
     
     return seed;
   }
@@ -186,6 +194,7 @@ public:
     addColumn("io_timestamp");
     addColumn("io_app_id");
     addColumn("io_user_id");
+    addColumn("tb");
     addColumn("i_partition_id");
     addColumn("project_i_id");
     addColumn("dataset_i_id");
@@ -213,21 +222,22 @@ public:
     row.mTimestamp = value[3]->int64_value();
     row.mAppId = get_string(value[4]);
     row.mUserId = value[5]->int32_value();
-    row.mPartitionId = value[6]->int64_value();
-    row.mProjectId = value[7]->int64_value();
-    row.mDatasetId = value[8]->int64_value();
-    row.mParentId = value[9]->int64_value();
-    row.mInodeName = get_string(value[10]);
-    row.mProjectName = get_string(value[11]);
-    row.mDatasetName = get_string(value[12]);
-    row.mP1Name = get_string(value[13]);
-    row.mP2Name = get_string(value[14]);
-    row.mParentName = get_string(value[15]);
-    row.mUserName = get_string(value[16]);
-    row.mXAttrName = get_string(value[17]);
-    row.mLogicalTimeBatch = value[18]->int32_value();
-    row.mTimestampBatch = value[19]->int64_value();
-    row.mDatasetLogicalTime = value[20]->int32_value();
+    row.mTieBreaker = get_string(value[6]);
+    row.mPartitionId = value[7]->int64_value();
+    row.mProjectId = value[8]->int64_value();
+    row.mDatasetId = value[9]->int64_value();
+    row.mParentId = value[10]->int64_value();
+    row.mInodeName = get_string(value[11]);
+    row.mProjectName = get_string(value[12]);
+    row.mDatasetName = get_string(value[13]);
+    row.mP1Name = get_string(value[14]);
+    row.mP2Name = get_string(value[15]);
+    row.mParentName = get_string(value[16]);
+    row.mUserName = get_string(value[17]);
+    row.mXAttrName = get_string(value[18]);
+    row.mLogicalTimeBatch = value[19]->int32_value();
+    row.mTimestampBatch = value[20]->int64_value();
+    row.mDatasetLogicalTime = value[21]->int32_value();
     return row;
   }
 
@@ -272,6 +282,7 @@ private:
     a[3] = pk.mTimestamp;
     a[4] = pk.mAppId;
     a[5] = pk.mUserId;
+    a[6] = pk.mTieBreaker;
 
     doDelete(a);
     LOG_DEBUG("Delete file provenance row: " << pk.to_string());
