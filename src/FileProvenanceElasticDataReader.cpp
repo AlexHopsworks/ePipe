@@ -30,7 +30,6 @@ public:
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
     op.AddMember("update", opVal, opAlloc);
 
@@ -78,7 +77,6 @@ public:
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
     op.AddMember("update", opVal, opAlloc);
 
@@ -114,7 +112,6 @@ public:
 
     rapidjson::Value cleanupIdVal(rapidjson::kObjectType);
     cleanupIdVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), cleanupAlloc), cleanupAlloc);
-    cleanupIdVal.AddMember("_type", rapidjson::Value().SetString("_doc", cleanupAlloc), cleanupAlloc);
     cleanupIdVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), cleanupAlloc), cleanupAlloc);
 
     cleanupId.AddMember("update", cleanupIdVal, cleanupId.GetAllocator());
@@ -140,7 +137,6 @@ public:
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
     op.AddMember("update", opVal, opAlloc);
 
@@ -203,7 +199,6 @@ public:
 
     rapidjson::Value cleanupIdVal(rapidjson::kObjectType);
     cleanupIdVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), cleanupAlloc), cleanupAlloc);
-    cleanupIdVal.AddMember("_type", rapidjson::Value().SetString("_doc", cleanupAlloc), cleanupAlloc);
     cleanupIdVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), cleanupAlloc), cleanupAlloc);
     cleanupId.AddMember("update", cleanupIdVal, cleanupAlloc);
 
@@ -245,7 +240,6 @@ public:
     rapidjson::Value opVal(rapidjson::kObjectType);
 
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("delete", opVal, opAlloc);
@@ -266,7 +260,6 @@ public:
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
@@ -317,7 +310,6 @@ public:
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);
@@ -382,7 +374,6 @@ public:
 
     rapidjson::Value opVal(rapidjson::kObjectType);
     opVal.AddMember("_id", rapidjson::Value().SetString(id.c_str(), opAlloc), opAlloc);
-    opVal.AddMember("_type", rapidjson::Value().SetString("_doc", opAlloc), opAlloc);
     opVal.AddMember("_index", rapidjson::Value().SetString(index.c_str(), opAlloc), opAlloc);
 
     op.AddMember("update", opVal, opAlloc);

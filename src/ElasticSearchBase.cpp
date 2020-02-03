@@ -20,7 +20,7 @@
 #include "ElasticSearchBase.h"
 
 ElasticSearchBase::ElasticSearchBase(const HttpClientConfig elastic_client_config, int time_to_wait_before_inserting, int bulk_size)
-    : TimedRestBatcher(elastic_client_config, time_to_wait_before_inserting, bulk_size), DEFAULT_TYPE("_doc") {
+    : TimedRestBatcher(elastic_client_config, time_to_wait_before_inserting, bulk_size) {
 }
 
 std::string ElasticSearchBase::getElasticSearchUrlonIndex(std::string index) {
@@ -30,7 +30,7 @@ std::string ElasticSearchBase::getElasticSearchUrlonIndex(std::string index) {
 
 std::string ElasticSearchBase::getElasticSearchUrlOnDoc(std::string index, Int64 doc) {
   std::stringstream out;
-  out << getElasticSearchUrlonIndex(index) << "/" << DEFAULT_TYPE << "/" << doc;
+  out << getElasticSearchUrlonIndex(index) << "/" << "/" << doc;
   return out.str();
 }
 
@@ -40,7 +40,7 @@ std::string ElasticSearchBase::getElasticSearchUpdateDocUrl(std::string index,  
 }
 
 std::string ElasticSearchBase::getElasticSearchBulkUrl(std::string index) {
-  std::string str = "/" + index + "/" + DEFAULT_TYPE + "/_bulk";
+  std::string str = "/" + index + "/_bulk";
   return str;
 }
 

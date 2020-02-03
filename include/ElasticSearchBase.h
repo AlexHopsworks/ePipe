@@ -40,8 +40,5 @@ protected:
   std::string getElasticSearchBulkUrl();
   virtual bool parseResponse(std::string response);
 
-protected:
-  const std::string DEFAULT_TYPE;
-
 };
 #endif //EPIPE_ELASTICSEARCHBASE_H
