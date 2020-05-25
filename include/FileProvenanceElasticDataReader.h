@@ -52,7 +52,7 @@ private:
           boost::optional<FPXAttrBufferPK> companionPK, FileProvenanceConstants::Operation provOp);
   ProcessRowResult process_row(FileProvenanceRow row);
   FPXAttrBufferRow readBufferedXAttr(FPXAttrBufferPK xattrBufferKey);
-  boost::optional<FPXAttrBufferRow> getProvCore(FPXAttrVersionsK versionsKey);
+  boost::optional<FPXAttrBufferRow> getProvCore(Int64 inodeId, int inodeLogicalTime);
   ULSet getViewInodes(Pq* data_batch);
   std::string getElasticBulkOps(std::list <std::string> bulkOps);
 };

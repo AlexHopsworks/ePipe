@@ -200,13 +200,13 @@ void Notifier::setup() {
     //file
     Ndb* ndb_elastic_file_provenance_conn = create_ndb_connection(mDatabaseName);
     mFileProvenanceElastic = new FileProvenanceElastic(mElasticClientConfig,
-      mElasticIssueTime, mElasticBatchsize, mStats, ndb_elastic_file_provenance_conn);
+      mElasticIssueTime, mElasticBatchsize, mStats, ndb_elastic_file_provenance_conn, mLRUCap);
 
     Ndb* elastic_file_provenance_tailer_connection = create_ndb_connection(mDatabaseName);
     Ndb* elastic_file_provenance_tailer_recovery_connection = mRecovery ? create_ndb_connection(mDatabaseName) : nullptr;
     mFileProvenanceTableTailer = new FileProvenanceTableTailer(
         elastic_file_provenance_tailer_connection, elastic_file_provenance_tailer_recovery_connection,
-        mPollMaxTimeToWait, mBarrier);
+        mPollMaxTimeToWait, mBarrier, mLRUCap);
 
     SConn* file_prov_hops_connections = new SConn[mFileProvenanceTU.mNumReaders];
     for (int i = 0; i < mFileProvenanceTU.mNumReaders; i++) {

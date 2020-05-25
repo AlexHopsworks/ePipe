@@ -17,7 +17,7 @@
 #include "FileProvenanceElasticDataReader.h"
 
 FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn hopsConn, const bool hopsworks, int lru_cap)
-: NdbDataReader(hopsConn, hopsworks), inodesTable(lru_cap) {
+: NdbDataReader(hopsConn, hopsworks), mFileLogTable(lru_cap), mXAttrBuffer(lru_cap), inodesTable(lru_cap) {
 }
 
 class ElasticHelper {
@@ -512,8 +512,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
   FileProvenanceConstants::Operation fileOp = FileProvenanceConstants::findOp(row);
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
   LOG_DEBUG("ml type:" << mlAux.first << " inode:" << row.mInodeId << " name:" << row.mInodeName);
-  FPXAttrVersionsK datasetProvCoreKey(row.mDatasetId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTR_PROV_CORE);
-  boost::optional<FPXAttrBufferRow> datasetProvCoreRow = getProvCore(datasetProvCoreKey);
+  boost::optional<FPXAttrBufferRow> datasetProvCoreRow = getProvCore(row.mDatasetId, row.mDatasetLogicalTime);
   boost::optional<FileProvenanceConstants::ProvOpStoreType> datasetProvCore = boost::make_optional(false, FileProvenanceConstants::ProvOpStoreType::STORE_NONE);
   boost::optional<Int64> projectIId = boost::none;
   std::string projectIndex;
@@ -720,15 +719,36 @@ FPXAttrBufferRow FileProvenanceElasticDataReader::readBufferedXAttr(FPXAttrBuffe
   return xAttrBufferVal.get();
 }
 
-boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(FPXAttrVersionsK versionsKey) {
-  std::vector<FPXAttrBufferRow> xattrVersions = mXAttrBuffer.get(mNdbConnection, versionsKey);
-  std::sort(xattrVersions.begin(), xattrVersions.end(),
-            [](FPXAttrBufferRow a, FPXAttrBufferRow b) {return a.mInodeLogicalTime > b.mInodeLogicalTime; });
-  if(xattrVersions.size() == 0) {
-    LOG_WARN("no xattr for key:" << versionsKey.to_string());
-    return boost::none;
+boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(Int64 inodeId, int inodeLogicalTime) {
+  boost::optional<FPXAttrBufferRow> provCore = FProvCoreCache::getInstance().get(inodeId, inodeLogicalTime);
+
+  if(provCore) {
+    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " hit cache:" << provCore.get().mInodeLogicalTime);
+    return provCore;
+  } else {
+    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " scanning buffer table");
+    FPXAttrVersionsK scanProvCoreKey(inodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTR_PROV_CORE);
+    std::vector<FPXAttrBufferRow> provCoreVersions = mXAttrBuffer.get(mNdbConnection, scanProvCoreKey);
+    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " found:" << provCoreVersions.size());
+    std::sort(provCoreVersions.begin(), provCoreVersions.end(),
+              [](FPXAttrBufferRow a, FPXAttrBufferRow b) { return a.mInodeLogicalTime > b.mInodeLogicalTime; });
+    if (provCoreVersions.size() == 0) {
+      LOG_WARN("no prov core for key:" << scanProvCoreKey.to_string());
+      return boost::none;
+    }
+    FPXAttrBufferRow provCoreAux = provCoreVersions[0];
+    for (std::vector<FPXAttrBufferRow>::iterator it = provCoreVersions.begin(); it != provCoreVersions.end(); ++it) {
+      FPXAttrBufferRow pc = *it;
+      if(pc.mInodeLogicalTime <= inodeLogicalTime) {
+        provCoreAux = pc;
+      } else {
+        break;
+      }
+    }
+    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " add to cache:" << provCoreAux.mInodeLogicalTime);
+    FProvCoreCache::getInstance().add(provCoreAux, inodeLogicalTime);
+    return provCoreAux;
   }
-  return xattrVersions.front();
 }
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {

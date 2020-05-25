@@ -18,10 +18,9 @@
 #include "FileProvenanceElastic.h"
 
 FileProvenanceElastic::FileProvenanceElastic(const HttpClientConfig elastic_client_config, int time_to_wait_before_inserting,
-    int bulk_size, const bool stats, SConn conn) :
+    int bulk_size, const bool stats, SConn conn, int lru_cap) :
 ElasticSearchBase(elastic_client_config,
-    time_to_wait_before_inserting, bulk_size, stats, new MovingCountersBulkSet
-    ("file_prov")), mConn(conn) {}
+    time_to_wait_before_inserting, bulk_size, stats, new MovingCountersBulkSet("file_prov")), mConn(conn), mFileProvTable(lru_cap) {}
 
 void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
   std::vector<eBulk>::iterator itB, endB;
@@ -33,13 +32,13 @@ void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
       LOG_DEBUG("val:" << event.getJSON());
       if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP) {
         if (httpPostRequest(mElasticBulkAddr, event.getJSON())){
-          FileProvenanceLogTable().cleanLog(mConn, event.getLogHandler());
+          mFileProvTable.cleanLog(mConn, event.getLogHandler());
         } else {
           LOG_FATAL("Failure while processing log : "
                         << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
         }
       }
-      FileProvenanceLogTable().cleanLog(mConn, event.getLogHandler());
+      mFileProvTable.cleanLog(mConn, event.getLogHandler());
     }
   }
 }
@@ -51,7 +50,7 @@ bool FileProvenanceElastic::intProcessBatch(std::string val, std::vector<eBulk>*
     std::string mElasticBulkAddr = getElasticSearchBulkUrl();
     if (httpPostRequest(mElasticBulkAddr, val)) {
       //bulk success
-      FileProvenanceLogTable().cleanLogs(mConn, cleanupHandlers);
+      mFileProvTable.cleanLogs(mConn, cleanupHandlers);
       if (mStats && !bulks->empty()) {
         mCounters->bulksProcessed(start_time, bulks);
       }
@@ -62,7 +61,7 @@ bool FileProvenanceElastic::intProcessBatch(std::string val, std::vector<eBulk>*
   } else {
     //maybe this was only nops for this index
     LOG_DEBUG("only nop events");
-    FileProvenanceLogTable().cleanLogs(mConn, cleanupHandlers);
+    mFileProvTable.cleanLogs(mConn, cleanupHandlers);
     if (mStats && !bulks->empty()) {
       LOG_DEBUG("adding to stats");
       mCounters->bulksProcessed(start_time, bulks);

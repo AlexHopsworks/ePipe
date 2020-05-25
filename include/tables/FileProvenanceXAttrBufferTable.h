@@ -17,6 +17,8 @@
 #ifndef FILEPROVENANCEXATTRBUFFERTABLE_H
 #define FILEPROVENANCEXATTRBUFFERTABLE_H
 
+#include "Cache.h"
+#include "Utils.h"
 #include "XAttrTable.h"
 
 struct FPXAttrBufferPK {
@@ -83,17 +85,124 @@ struct FPXAttrBufferRow {
 
 typedef std::vector <boost::optional<FPXAttrBufferPK> > FPXAttrBKeys;
 
+struct ProvCoreEntry {
+  FPXAttrBufferPK key;
+  FPXAttrBufferRow value;
+  int upToLogicalTime;
+
+  ProvCoreEntry(FPXAttrBufferPK mKey, FPXAttrBufferRow mValue, int mLogicalTime) :
+          key(mKey), value(mValue), upToLogicalTime(mLogicalTime) {}
+};
+
+struct ProvCore {
+  ProvCoreEntry* core1;
+  ProvCoreEntry* core2;
+
+  ProvCore(ProvCoreEntry* provCore) : core1(provCore) {}
+};
+
+class ProvCoreCache {
+public:
+  ProvCoreCache(int lru_cap, const char* prefix) : mProvCores(lru_cap, prefix) {}
+  /* for each inode we keep to cached values core1 and core2 and they are ordered core1 < core2
+  * we do this, in the hope we get a nicer transition we the core changes but we might still get some out of order operations (using old core1)
+  * each core is used for an interval of logical times...
+  * we do not know the upper bound until we get the next core,
+  * so the upToLogicalTime increments as we find from db that we should use same core
+  */
+  void add(FPXAttrBufferRow value, int opLogicalTime) {
+    FPXAttrBufferPK key = value.getPK();
+    if(mProvCores.contains(key.mInodeId)) {
+      ProvCore provCore = mProvCores.get(key.mInodeId).get();
+      //case {new} - <> -> <new>
+      if (provCore.core1 == nullptr) {
+        //no core defined
+        provCore.core1 = new ProvCoreEntry(key, value, opLogicalTime);
+        return;
+      }
+      //update core usage for upTo
+      if (provCore.core1->key.mInodeLogicalTime == key.mInodeLogicalTime
+          && provCore.core1->upToLogicalTime < opLogicalTime) {
+        provCore.core1->upToLogicalTime = opLogicalTime;
+        return;
+      }
+      //case {new, 1, 2?} - <1> -> <new, 1> or <1,2> -> <new, 1>
+      if (provCore.core1->key.mInodeLogicalTime > key.mInodeLogicalTime) {
+        //evict 2 if necessary(not null)
+        if (provCore.core2 != nullptr) {
+          delete provCore.core2;
+        }
+        provCore.core2 = provCore.core1;
+        provCore.core1 = new ProvCoreEntry(key, value, opLogicalTime);
+        return;
+      }
+      //holds: core1->key.mInodeLogicalTime < key.mInodeLogicalTime
+      //case {1,new} - <1> -> <1,new>
+      if (provCore.core2 == nullptr) {
+        provCore.core2 = new ProvCoreEntry(key, value, opLogicalTime);
+        return;
+      }
+      //update core usage for upTo
+      if (provCore.core2->key.mInodeLogicalTime == key.mInodeLogicalTime
+          && provCore.core2->upToLogicalTime < opLogicalTime) {
+        provCore.core2->upToLogicalTime = opLogicalTime;
+        return;
+      }
+      //case {1,2,new} - <1,2> -> <2,new>
+      if (provCore.core2->key.mInodeLogicalTime < key.mInodeLogicalTime) {
+        delete provCore.core1;
+        provCore.core1 = provCore.core2;
+        provCore.core2 = new ProvCoreEntry(key, value, opLogicalTime);
+      } //case {1,new,2} - <1,2> -> <new,2>
+      else {
+        delete provCore.core1;
+        provCore.core1 = new ProvCoreEntry(key, value, opLogicalTime);
+      }
+    } else {
+      ProvCore core1(new ProvCoreEntry(key, value, opLogicalTime));
+      mProvCores.put(key.mInodeId, core1);
+    }
+  }
+
+  boost::optional<FPXAttrBufferRow> get(Int64 inodeId, int logicalTime) {
+    boost::optional<ProvCore> provCore = mProvCores.get(inodeId);
+    if(provCore) {
+      if(provCore.get().core1 != nullptr
+         && provCore.get().core1->key.mInodeLogicalTime <= logicalTime && logicalTime <= provCore.get().core1->upToLogicalTime) {
+        return provCore.get().core1->value;
+      }
+      if(provCore.get().core2 != nullptr
+         && provCore.get().core2->key.mInodeLogicalTime <= logicalTime && logicalTime <= provCore.get().core1->upToLogicalTime) {
+        return provCore.get().core2->value;
+      }
+    }
+    return boost::none;
+  }
+private:
+  Cache<Int64, ProvCore> mProvCores;
+};
+
+class FPCCache : public ProvCoreCache {
+public:
+
+  FPCCache(int lru_cap, const char* prefix) : ProvCoreCache(lru_cap, prefix) {
+  }
+};
+
+typedef CacheSingleton<FPCCache> FProvCoreCache;
+
 class FileProvenanceXAttrBufferTable : public DBTable<FPXAttrBufferRow> {
 
 public:
   public:
 
-  FileProvenanceXAttrBufferTable() : DBTable("hdfs_file_provenance_xattrs_buffer") {
+  FileProvenanceXAttrBufferTable(int lru_cap) : DBTable("hdfs_file_provenance_xattrs_buffer") {
     addColumn("inode_id");
     addColumn("namespace");
     addColumn("name");
     addColumn("inode_logical_time");
     addColumn("value");
+    FProvCoreCache::getInstance(lru_cap, "FileProvCore");
   }
 
   FPXAttrBufferRow getRow(NdbRecAttr* values[]) {

@@ -25,7 +25,7 @@
 
 class FileProvenanceTableTailer : public RCTableTailer<FileProvenanceRow> {
 public:
-  FileProvenanceTableTailer(Ndb* ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier);
+  FileProvenanceTableTailer(Ndb* ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier, int lru_cap);
   FileProvenanceRow consume();
   virtual ~FileProvenanceTableTailer();
 
