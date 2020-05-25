@@ -19,8 +19,8 @@
 
 #include "FileProvenanceTableTailer.h"
 
-FileProvenanceTableTailer::FileProvenanceTableTailer(Ndb *ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier)
-: RCTableTailer(ndb, ndbRecovery, new FileProvenanceLogTable(), poll_maxTimeToWait, barrier) {
+FileProvenanceTableTailer::FileProvenanceTableTailer(Ndb *ndb, Ndb* ndbRecovery, const int poll_maxTimeToWait, const Barrier barrier, int lru_cap)
+: RCTableTailer(ndb, ndbRecovery, new FileProvenanceLogTable(lru_cap), poll_maxTimeToWait, barrier) {
   mQueue = new CPRq();
   mCurrentPriorityQueue = new PRpq();
 }

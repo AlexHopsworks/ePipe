@@ -186,7 +186,7 @@ public:
     }
   };
 
-  FileProvenanceLogTable() : DBWatchTable("hdfs_file_provenance_log", new FileProvenanceXAttrBufferTable()) {
+  FileProvenanceLogTable(int lru_cap) : DBWatchTable("hdfs_file_provenance_log", new FileProvenanceXAttrBufferTable(lru_cap)) {
     addColumn("inode_id");
     addColumn("inode_operation");
     addColumn("io_logical_time");
