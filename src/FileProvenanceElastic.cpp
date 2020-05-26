@@ -23,19 +23,20 @@ ElasticSearchBase(elastic_client_config,
     time_to_wait_before_inserting, bulk_size, stats, new MovingCountersBulkSet("file_prov")), mConn(conn), mFileProvTable(lru_cap) {}
 
 void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
-  std::vector<eBulk>::iterator itB, endB;
   std::deque<eEvent>::iterator itE, endE;
   std::string mElasticBulkAddr = getElasticSearchBulkUrl();
   for(auto event : bulk.mEvents) {
-    if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP
-        && event.getJSON() != FileProvenanceConstants::ELASTIC_NOP2) {
+    if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP && event.getJSON() != FileProvenanceConstants::ELASTIC_NOP2) {
       LOG_DEBUG("val:" << event.getJSON());
       if (event.getJSON() != FileProvenanceConstants::ELASTIC_NOP) {
-        if (httpPostRequest(mElasticBulkAddr, event.getJSON())){
-          mFileProvTable.cleanLog(mConn, event.getLogHandler());
-        } else {
-          LOG_FATAL("Failure while processing log : "
-                        << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
+        ParsingResponse pr = httpPostRequest(mElasticBulkAddr, event.getJSON());
+        if (!pr.mSuccess) {
+          if (boost::starts_with(pr.errorMsg, "document_missing_exception:")) {
+            LOG_WARN("Skipped - document missing - " << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
+          } else {
+            LOG_ERROR("Failure while processing log : " << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
+            LOG_FATAL("cannot recover");
+          }
         }
       }
       mFileProvTable.cleanLog(mConn, event.getLogHandler());
@@ -48,7 +49,7 @@ bool FileProvenanceElastic::intProcessBatch(std::string val, std::vector<eBulk>*
   if (!val.empty()) {
     LOG_DEBUG("bulk write size:" << val.length() << " val:" << val);
     std::string mElasticBulkAddr = getElasticSearchBulkUrl();
-    if (httpPostRequest(mElasticBulkAddr, val)) {
+    if (httpPostRequest(mElasticBulkAddr, val).mSuccess) {
       //bulk success
       mFileProvTable.cleanLogs(mConn, cleanupHandlers);
       if (mStats && !bulks->empty()) {

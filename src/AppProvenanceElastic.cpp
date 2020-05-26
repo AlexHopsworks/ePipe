@@ -37,7 +37,7 @@ void AppProvenanceElastic::process(std::vector<eBulk>* bulks) {
   }
 
   ptime start_time = Utils::getCurrentTime();
-  if (httpPostRequest(mElasticBulkAddr, batch)) {
+  if (httpPostRequest(mElasticBulkAddr, batch).mSuccess) {
     AppProvenanceLogTable().removeLogs(mConn, logRHandlers);
     if (mStats) {
       mCounters->bulksProcessed(start_time, bulks);
@@ -59,7 +59,7 @@ void AppProvenanceElastic::process(std::vector<eBulk>* bulks) {
 }
 
 bool AppProvenanceElastic::bulkRequest(eEvent& event) {
-  if (httpPostRequest(mElasticBulkAddr, event.getJSON())){
+  if (httpPostRequest(mElasticBulkAddr, event.getJSON()).mSuccess){
     event.getLogHandler()->removeLog(mConn);
     return true;
   }
