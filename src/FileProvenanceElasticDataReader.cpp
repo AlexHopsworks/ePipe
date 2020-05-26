@@ -131,7 +131,11 @@ public:
     script << "} else{ ctx.op=\"noop\";}";
 
     rapidjson::Value scriptVal(script.str().c_str(), cleanup.GetAllocator());
+    cleanup.AddMember("scripted_upsert", rapidjson::Value().SetBool(true), cleanup.GetAllocator());
     cleanup.AddMember("script", scriptVal, cleanup.GetAllocator());
+    rapidjson::Document emptyUpsert;
+    emptyUpsert.SetObject();
+    cleanup.AddMember("upsert", emptyUpsert, cleanup.GetAllocator());
 
     //id
     rapidjson::Document op;
@@ -532,11 +536,9 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
     LOG_WARN(cause.str());
     return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
   }
-  INodeRow inode = inodesTable.getByInodeId(mNdbConnection, row.mProjectId);
-  if(inode.mId != row.mProjectId) {
-    std::stringstream cause;
-    cause << "no project inode(deleted?) - skipping operation" << row.to_string();
-    LOG_DEBUG(cause.str());
+
+  if(!projectExists(row.mProjectId, row.mTimestamp)) {
+    LOG_DEBUG("no project inode(deleted?) - skipping operation" << row.getPK().to_string());
     return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
   }
 
@@ -694,6 +696,28 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
       std::stringstream cause;
       cause << "operation not implemented:" << row.mOperation;
       throw std::logic_error(cause.str());
+    }
+  }
+}
+
+bool FileProvenanceElasticDataReader::projectExists(Int64 projectIId, Int64 timestamp) {
+  /* yes we use operation timestamp - in case of recovery we might be doing pointless checks,
+   * but they are stil few - for every 1 hour worth of operations
+   */
+  Int64 timestampMaxShift = 1000*3600;
+  LOG_DEBUG("project exists check - inode:" << projectIId);
+  if(FileProvCache::getInstance().projectExists(projectIId, timestamp, timestampMaxShift)) {
+    LOG_DEBUG("project exists - from cache");
+    return true;
+  } else {
+    INodeRow inode = inodesTable.getByInodeId(mNdbConnection, projectIId);
+    if(inode.mId == projectIId) {
+      LOG_DEBUG("project exists - refresh cache");
+      FileProvCache::getInstance().addProjectExists(projectIId, timestamp);
+      return true;
+    } else {
+      LOG_DEBUG("project exists - deleted");
+      return false;
     }
   }
 }

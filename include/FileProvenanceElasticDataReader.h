@@ -51,6 +51,7 @@ private:
   ProcessRowResult rowResult(std::list<std::string> elasticOps, FileProvenancePK logPK,
           boost::optional<FPXAttrBufferPK> companionPK, FileProvenanceConstants::Operation provOp);
   ProcessRowResult process_row(FileProvenanceRow row);
+  bool projectExists(Int64 projectIId, Int64 timestamp);
   FPXAttrBufferRow readBufferedXAttr(FPXAttrBufferPK xattrBufferKey);
   boost::optional<FPXAttrBufferRow> getProvCore(Int64 inodeId, int inodeLogicalTime);
   ULSet getViewInodes(Pq* data_batch);

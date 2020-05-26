@@ -160,6 +160,42 @@ typedef boost::heap::priority_queue<FileProvenanceRow, boost::heap::compare<File
 typedef std::vector <boost::optional<FileProvenancePK> > PKeys;
 typedef std::vector <FileProvenanceRow> Pq;
 
+class FProvCache {
+public:
+  FProvCache(int lru_cap, const char *prefix) : mProjects(lru_cap, prefix) {}
+
+  bool projectExists(Int64 projectIId, Int64 timestamp, Int64 maxShift) {
+    boost::optional<Int64> old_timestamp = mProjects.get(projectIId);
+    if(old_timestamp) {
+      if(timestamp <= old_timestamp.get() + maxShift) {
+        return true;
+      } else {
+        LOG_DEBUG("project exists - cached entry too old t1:" << old_timestamp.get() << " t2:" << timestamp);
+        //our entry is too old
+        mProjects.remove(projectIId);
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
+  void addProjectExists(Int64 projectIId, Int64 timestamp) {
+    mProjects.put(projectIId, timestamp);
+  }
+private:
+  Cache<Int64, Int64> mProjects;
+};
+
+class FPCache : public FProvCache {
+public:
+
+  FPCache(int lru_cap, const char* prefix) : FProvCache(lru_cap, prefix) {
+  }
+};
+
+typedef CacheSingleton<FPCache> FileProvCache;
+
 class FileProvenanceLogTable : public DBWatchTable<FileProvenanceRow> {
 public:
   struct FileProvLogHandler : public LogHandler{
@@ -210,6 +246,7 @@ public:
     addColumn("io_timestamp_batch");
     addColumn("ds_logical_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
+    FileProvCache::getInstance(lru_cap, "FileProv");
   }
 
   FileProvenanceRow getRow(NdbRecAttr* value[]) {
