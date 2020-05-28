@@ -739,36 +739,37 @@ FPXAttrBufferRow FileProvenanceElasticDataReader::readBufferedXAttr(FPXAttrBuffe
   return xAttrBufferVal.get();
 }
 
-boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(Int64 inodeId, int inodeLogicalTime) {
-  boost::optional<FPXAttrBufferRow> provCore = FProvCoreCache::getInstance().get(inodeId, inodeLogicalTime);
-
+boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(Int64 inodeId, int opLogicalTime) {
+  boost::optional<FPXAttrBufferRow> provCore = FProvCoreCache::getInstance().get(inodeId, opLogicalTime);
   if(provCore) {
-    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " hit cache:" << provCore.get().mInodeLogicalTime);
+    LOG_DEBUG("prov core - hit cache inode:" << inodeId << ", op:" << opLogicalTime << " prov:" << provCore.get().mInodeLogicalTime);
     return provCore;
   } else {
-    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " scanning buffer table");
-    FPXAttrVersionsK scanProvCoreKey(inodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTR_PROV_CORE);
-    std::vector<FPXAttrBufferRow> provCoreVersions = mXAttrBuffer.get(mNdbConnection, scanProvCoreKey);
-    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " found:" << provCoreVersions.size());
-    std::sort(provCoreVersions.begin(), provCoreVersions.end(),
-              [](FPXAttrBufferRow a, FPXAttrBufferRow b) { return a.mInodeLogicalTime > b.mInodeLogicalTime; });
-    if (provCoreVersions.size() == 0) {
-      LOG_WARN("no prov core for key:" << scanProvCoreKey.to_string());
+    int fromLogicalTime = FProvCoreCache::getInstance().getProvCoreLogicalTime(inodeId, opLogicalTime);
+    LOG_DEBUG("prov core - scanning buffer table inode:" << inodeId << ", from:" << fromLogicalTime << ", to:" << opLogicalTime);
+    provCore = readProvCore(inodeId, fromLogicalTime, opLogicalTime);
+    if(provCore) {
+      LOG_DEBUG("prov core - add to cache inode:" << inodeId << ", op:" << opLogicalTime << " prov:" << provCore.get().mInodeLogicalTime);
+      FProvCoreCache::getInstance().add(provCore.get(), opLogicalTime);
+      return provCore;
+    } else {
       return boost::none;
     }
-    FPXAttrBufferRow provCoreAux = provCoreVersions[0];
-    for (std::vector<FPXAttrBufferRow>::iterator it = provCoreVersions.begin(); it != provCoreVersions.end(); ++it) {
-      FPXAttrBufferRow pc = *it;
-      if(pc.mInodeLogicalTime <= inodeLogicalTime) {
-        provCoreAux = pc;
-      } else {
-        break;
-      }
-    }
-    LOG_DEBUG("prov core:" << inodeId << "," << inodeLogicalTime << " add to cache:" << provCoreAux.mInodeLogicalTime);
-    FProvCoreCache::getInstance().add(provCoreAux, inodeLogicalTime);
-    return provCoreAux;
   }
+}
+
+boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::readProvCore(Int64 inodeId, int fromLogicalTime, int toLogicalTime) {
+  std::vector<FPXAttrBufferRow> provCoreVersions = mXAttrBuffer.getBatch(mNdbConnection, inodeId,
+          FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTR_PROV_CORE, fromLogicalTime, toLogicalTime);
+  LOG_DEBUG("prov core - inode:" << inodeId << ", from:" << fromLogicalTime << ", to:" << toLogicalTime << " found:" << provCoreVersions.size());
+  //sort in reverse logical time order, so we can use latest, closest prov core
+  std::sort(provCoreVersions.begin(), provCoreVersions.end(),
+            [](FPXAttrBufferRow a, FPXAttrBufferRow b) { return a.mInodeLogicalTime > b.mInodeLogicalTime; });
+  if (provCoreVersions.size() == 0) {
+    LOG_WARN("prov core - none found for inode:" << inodeId << ", from:" << fromLogicalTime << ", to:" << toLogicalTime);
+    return boost::none;
+  }
+  return provCoreVersions[0];
 }
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {

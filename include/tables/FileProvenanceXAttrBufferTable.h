@@ -178,18 +178,32 @@ public:
     }
     return boost::none;
   }
+
+  /*
+   * get the closest prov core logical time we can guess - for scanning the xattr buffer table for the actual prov core
+   */
+  int getProvCoreLogicalTime(Int64 inodeId, int opLogicalTime) {
+    boost::optional<ProvCore> provCore = mProvCores.get(inodeId);
+    if(provCore) {
+      if(provCore.get().core1 != nullptr) {
+        if(provCore.get().core1->upToLogicalTime <= opLogicalTime) {
+          return provCore.get().core1->key.mInodeLogicalTime;
+        }
+      } else if(provCore.get().core2 != nullptr) {
+        if(opLogicalTime < provCore.get().core2->key.mInodeLogicalTime) {
+          return provCore.get().core1->key.mInodeLogicalTime;
+        } else {
+          return provCore.get().core2->key.mInodeLogicalTime;
+        }
+      }
+    }
+    return 0;
+  }
 private:
   Cache<Int64, ProvCore> mProvCores;
 };
 
-class FPCCache : public ProvCoreCache {
-public:
-
-  FPCCache(int lru_cap, const char* prefix) : ProvCoreCache(lru_cap, prefix) {
-  }
-};
-
-typedef CacheSingleton<FPCCache> FProvCoreCache;
+typedef CacheSingleton<ProvCoreCache> FProvCoreCache;
 
 class FileProvenanceXAttrBufferTable : public DBTable<FPXAttrBufferRow> {
 
@@ -233,12 +247,17 @@ public:
     }
   }
 
-  std::vector<FPXAttrBufferRow> get(Ndb* connection, FPXAttrVersionsK key) {
-    AnyMap a;
-    a[0] = key.mInodeId;
-    a[1] = key.mNamespace;
-    a[2] = key.mName;
-    return DBTable<FPXAttrBufferRow>::doRead(connection, "xattr_versions", a, key.mInodeId);
+  std::vector<FPXAttrBufferRow> getBatch(Ndb* connection, Int64 inodeId, Int8 ns, std::string name, int fromLogicalTime, int toLogicalTime){
+    AnyVec anyVec;
+    for(Int64 logicalTime=fromLogicalTime; logicalTime <= toLogicalTime; logicalTime++){
+      AnyMap a;
+      a[0] = inodeId;
+      a[1] = ns;
+      a[2] = name;
+      a[3] = logicalTime;
+      anyVec.push_back(a);
+    }
+    return DBTable<FPXAttrBufferRow>::doRead(connection, anyVec);
   }
 
   private:

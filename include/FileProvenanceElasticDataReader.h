@@ -54,6 +54,7 @@ private:
   bool projectExists(Int64 projectIId, Int64 timestamp);
   FPXAttrBufferRow readBufferedXAttr(FPXAttrBufferPK xattrBufferKey);
   boost::optional<FPXAttrBufferRow> getProvCore(Int64 inodeId, int inodeLogicalTime);
+  boost::optional<FPXAttrBufferRow> readProvCore(Int64 inodeId, int fromLogicalTime, int toLogicalTime)
   ULSet getViewInodes(Pq* data_batch);
   std::string getElasticBulkOps(std::list <std::string> bulkOps);
 };
