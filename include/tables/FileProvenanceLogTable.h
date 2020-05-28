@@ -55,6 +55,18 @@ struct FileProvenancePK {
     <<"-"<<mTieBreaker;
     return out.str();
   }
+
+  AnyMap getMap() {
+    AnyMap a;
+    a[0] = mInodeId;
+    a[1] = mOperation;
+    a[2] = mLogicalTime;
+    a[3] = mTimestamp;
+    a[4] = mAppId;
+    a[5] = mUserId;
+    a[6] = mTieBreaker;
+    return a;
+  }
 };
 
 struct FileProvenanceRow {
@@ -307,6 +319,16 @@ public:
     return new FileProvLogHandler(pk, bufferPK);
   }
 
+  boost::optional<FPXAttrBufferRow> getCompanionRow(Ndb* connection, FPXAttrBufferPK key) {
+    FileProvenanceXAttrBufferTable* mXAttrBuffer = static_cast<FileProvenanceXAttrBufferTable*>(mCompanionTableBase);
+    return mXAttrBuffer->getRow(connection, key);
+  }
+
+  std::vector<FPXAttrBufferRow> getCompanionBatch(Ndb* connection, FPXAttrBufferPK key, int fromLogicalTime) {
+    FileProvenanceXAttrBufferTable* mXAttrBuffer = static_cast<FileProvenanceXAttrBufferTable*>(mCompanionTableBase);
+    return mXAttrBuffer->getBatch(connection, key, fromLogicalTime);
+  }
+
 private:
   void cleanLogsOneTransaction(Ndb* connection, std::vector<const LogHandler*>&logrh) {
     start(connection);
@@ -353,38 +375,17 @@ private:
   void _doDeleteOnCompanion(const FileProvLogHandler *fplog){
     if (fplog->mBufferPK){
       FPXAttrBufferPK cPK = fplog->mBufferPK.get();
-      AnyMap companionPK = getCompanionPK(cPK);
+      AnyMap xattrProvPK = cPK.getMap();
       LOG_DEBUG("Delete xattr buffer row: " << cPK.to_string());
-      doDeleteOnCompanion(companionPK);
+      doDeleteOnCompanion(xattrProvPK);
     }
   }
 
   void _doDelete(const FileProvLogHandler *fplog){
     FileProvenancePK fPK = fplog->mPK;
-    AnyMap fileProvPK = getFileProvPK(fPK);
+    AnyMap fileProvPK = fPK.getMap();
     LOG_DEBUG("Delete file provenance row: " << fPK.to_string());
     doDelete(fileProvPK);
-  }
-
-  AnyMap getFileProvPK(FileProvenancePK pk) {
-    AnyMap a;
-    a[0] = pk.mInodeId;
-    a[1] = pk.mOperation;
-    a[2] = pk.mLogicalTime;
-    a[3] = pk.mTimestamp;
-    a[4] = pk.mAppId;
-    a[5] = pk.mUserId;
-    a[6] = pk.mTieBreaker;
-    return a;
-  }
-
-  AnyMap getCompanionPK(FPXAttrBufferPK pk) {
-    AnyMap a;
-    a[0] = pk.mInodeId;
-    a[1] = pk.mNamespace;
-    a[2] = pk.mName;
-    a[3] = pk.mInodeLogicalTime;
-    return a;
   }
 };
 #endif /* FILEPROVENANCELOGTABLE_H */

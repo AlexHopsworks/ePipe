@@ -39,6 +39,19 @@ struct FPXAttrBufferPK {
     out << mInodeId << "-" << std::to_string(mNamespace) << "-" << mName << "-" << mInodeLogicalTime;
     return out.str();
   }
+
+  FPXAttrBufferPK withLogicalTime(int inodeLogicalTime) {
+    return FPXAttrBufferPK(mInodeId, mNamespace, mName, inodeLogicalTime);
+  }
+
+  AnyMap getMap() {
+    AnyMap a;
+    a[0] = mInodeId;
+    a[1] = mNamespace;
+    a[2] = mName;
+    a[3] = mInodeLogicalTime;
+    return a;
+  }
 };
 
 struct FPXAttrVersionsK {
@@ -229,17 +242,9 @@ public:
     return row;
   }
 
-  FPXAttrBufferRow get(Ndb* connection, Int64 inodeId, Int8 ns, std::string name, int inodeLogicalTime) {
-    AnyMap a;
-    a[0] = inodeId;
-    a[1] = ns;
-    a[2] = name;
-    a[3] = inodeLogicalTime;
-    return DBTable<FPXAttrBufferRow>::doRead(connection, a);
-  }
-
-  boost::optional<FPXAttrBufferRow> get(Ndb* connection, FPXAttrBufferPK key) {
-    FPXAttrBufferRow row = get(connection, key.mInodeId, key.mNamespace, key.mName, key.mInodeLogicalTime);
+  boost::optional<FPXAttrBufferRow> getRow(Ndb* connection, FPXAttrBufferPK key) {
+    AnyMap keyMap = key.getMap();
+    FPXAttrBufferRow row = DBTable<FPXAttrBufferRow>::doRead(connection, keyMap);
     if (readCheckExists(key, row)) {
       return row;
     } else {
@@ -247,15 +252,11 @@ public:
     }
   }
 
-  std::vector<FPXAttrBufferRow> getBatch(Ndb* connection, Int64 inodeId, Int8 ns, std::string name, int fromLogicalTime, int toLogicalTime){
+  std::vector<FPXAttrBufferRow> getBatch(Ndb* connection, FPXAttrBufferPK key, int fromLogicalTime) {
     AnyVec anyVec;
-    for(Int64 logicalTime=fromLogicalTime; logicalTime <= toLogicalTime; logicalTime++){
-      AnyMap a;
-      a[0] = inodeId;
-      a[1] = ns;
-      a[2] = name;
-      a[3] = logicalTime;
-      anyVec.push_back(a);
+    for(Int64 logicalTime=fromLogicalTime; logicalTime <= key.mInodeLogicalTime; logicalTime++){
+      AnyMap keyMap = key.withLogicalTime(logicalTime).getMap();
+      anyVec.push_back(keyMap);
     }
     return DBTable<FPXAttrBufferRow>::doRead(connection, anyVec);
   }

@@ -44,7 +44,6 @@ protected:
 
 private:
   FileProvenanceLogTable mFileLogTable;
-  FileProvenanceXAttrBufferTable mXAttrBuffer;
   INodeTable inodesTable;
 
   void processAddedandDeleted(Pq* data_batch, eBulk& bulk);
