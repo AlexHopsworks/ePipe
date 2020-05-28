@@ -162,16 +162,21 @@ typedef std::vector <FileProvenanceRow> Pq;
 
 class FProvCache {
 public:
-  FProvCache(int lru_cap, const char *prefix) : mProjects(lru_cap, prefix) {}
+  /* we use a max timestamp shift of 1h
+   * we cache the existance of a project for 1 hour before checking again if the project is still there
+   */
+  FProvCache(int lru_cap, const char* prefix) : maxTimestampShift(1000*3600), mProjects(lru_cap, prefix) {}
 
-  bool projectExists(Int64 projectIId, Int64 timestamp, Int64 maxShift) {
+  bool projectExists(Int64 projectIId, Int64 timestamp) {
+    /* yes we use operation timestamp - in case of recovery we might be doing pointless checks as the timestamps are obsolete
+     * but they won't be that many and it simplifies logic
+     */
     boost::optional<Int64> old_timestamp = mProjects.get(projectIId);
     if(old_timestamp) {
-      if(timestamp <= old_timestamp.get() + maxShift) {
+      if (timestamp <= old_timestamp.get() + maxTimestampShift) {
         return true;
       } else {
-        LOG_DEBUG("project exists - cached entry too old t1:" << old_timestamp.get() << " t2:" << timestamp);
-        //our entry is too old
+        LOG_DEBUG("project exists - cached entry too old:" << old_timestamp.get() << " op timestamp:" << timestamp);
         mProjects.remove(projectIId);
         return false;
       }
@@ -184,17 +189,11 @@ public:
     mProjects.put(projectIId, timestamp);
   }
 private:
+  int maxTimestampShift;
   Cache<Int64, Int64> mProjects;
 };
 
-class FPCache : public FProvCache {
-public:
-
-  FPCache(int lru_cap, const char* prefix) : FProvCache(lru_cap, prefix) {
-  }
-};
-
-typedef CacheSingleton<FPCache> FileProvCache;
+typedef CacheSingleton<FProvCache> FileProvCache;
 
 class FileProvenanceLogTable : public DBWatchTable<FileProvenanceRow> {
 public:

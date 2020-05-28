@@ -701,12 +701,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
 }
 
 bool FileProvenanceElasticDataReader::projectExists(Int64 projectIId, Int64 timestamp) {
-  /* yes we use operation timestamp - in case of recovery we might be doing pointless checks,
-   * but they are stil few - for every 1 hour worth of operations
-   */
-  Int64 timestampMaxShift = 1000*3600;
   LOG_DEBUG("project exists check - inode:" << projectIId);
-  if(FileProvCache::getInstance().projectExists(projectIId, timestamp, timestampMaxShift)) {
+  if(FileProvCache::getInstance().projectExists(projectIId, timestamp)) {
     LOG_DEBUG("project exists - from cache");
     return true;
   } else {
