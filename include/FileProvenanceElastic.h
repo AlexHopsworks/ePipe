@@ -26,7 +26,7 @@
 class FileProvenanceElastic : public ElasticSearchBase {
 public:
   FileProvenanceElastic(const HttpClientConfig elastic_client_config,int time_to_wait_before_inserting, int bulk_size,
-      const bool stats, SConn conn, int lru_cap);
+      const bool stats, SConn conn, int file_lru_cap, int xattr_lru_cap);
 
   virtual ~FileProvenanceElastic();
 private:

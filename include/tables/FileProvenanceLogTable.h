@@ -221,7 +221,7 @@ public:
     }
   };
 
-  FileProvenanceLogTable(int lru_cap) : DBWatchTable("hdfs_file_provenance_log", new FileProvenanceXAttrBufferTable(lru_cap)) {
+  FileProvenanceLogTable(int file_lru_cap, int xattr_lru_cap) : DBWatchTable("hdfs_file_provenance_log", new FileProvenanceXAttrBufferTable(xattr_lru_cap)) {
     addColumn("inode_id");
     addColumn("inode_operation");
     addColumn("io_logical_time");
@@ -245,7 +245,7 @@ public:
     addColumn("io_timestamp_batch");
     addColumn("ds_logical_time");
     addWatchEvent(NdbDictionary::Event::TE_INSERT);
-    FileProvCache::getInstance(lru_cap, "FileProv");
+    FileProvCache::getInstance(file_lru_cap, "FileProv");
   }
 
   FileProvenanceRow getRow(NdbRecAttr* value[]) {

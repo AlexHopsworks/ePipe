@@ -18,9 +18,9 @@
 #include "FileProvenanceElastic.h"
 
 FileProvenanceElastic::FileProvenanceElastic(const HttpClientConfig elastic_client_config, int time_to_wait_before_inserting,
-    int bulk_size, const bool stats, SConn conn, int lru_cap) :
-ElasticSearchBase(elastic_client_config,
-    time_to_wait_before_inserting, bulk_size, stats, new MovingCountersBulkSet("file_prov")), mConn(conn), mFileProvTable(lru_cap) {}
+    int bulk_size, const bool stats, SConn conn, int file_lru_cap, int xattr_lru_cap)
+    : ElasticSearchBase(elastic_client_config, time_to_wait_before_inserting, bulk_size, stats, new MovingCountersBulkSet("file_prov")),
+    mConn(conn), mFileProvTable(file_lru_cap, xattr_lru_cap) {}
 
 void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
   std::deque<eEvent>::iterator itE, endE;

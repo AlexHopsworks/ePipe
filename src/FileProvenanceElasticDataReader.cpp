@@ -16,8 +16,9 @@
 
 #include "FileProvenanceElasticDataReader.h"
 
-FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn hopsConn, const bool hopsworks, int lru_cap)
-: NdbDataReader(hopsConn, hopsworks), mFileLogTable(lru_cap), mXAttrBuffer(lru_cap), inodesTable(lru_cap) {
+FileProvenanceElasticDataReader::FileProvenanceElasticDataReader(SConn hopsConn, const bool hopsworks,
+        int file_lru_cap, int xattr_lru_cap, int inodes_lru_cap)
+: NdbDataReader(hopsConn, hopsworks), mFileLogTable(file_lru_cap, xattr_lru_cap), mXAttrBuffer(xattr_lru_cap), inodesTable(inodes_lru_cap) {
 }
 
 class ElasticHelper {

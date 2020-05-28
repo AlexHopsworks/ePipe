@@ -38,7 +38,7 @@ struct ProcessRowResult {
 
 class FileProvenanceElasticDataReader : public NdbDataReader<FileProvenanceRow, SConn> {
 public:
-  FileProvenanceElasticDataReader(SConn hopsConn, const bool hopsworks, int lru_cap);
+  FileProvenanceElasticDataReader(SConn hopsConn, const bool hopsworks, int prov_file_lru_cap, int prov_core_lru_cap, int inodes_lru_cap);
   virtual ~FileProvenanceElasticDataReader();
 protected:
 
@@ -54,7 +54,7 @@ private:
   bool projectExists(Int64 projectIId, Int64 timestamp);
   FPXAttrBufferRow readBufferedXAttr(FPXAttrBufferPK xattrBufferKey);
   boost::optional<FPXAttrBufferRow> getProvCore(Int64 inodeId, int inodeLogicalTime);
-  boost::optional<FPXAttrBufferRow> readProvCore(Int64 inodeId, int fromLogicalTime, int toLogicalTime)
+  boost::optional<FPXAttrBufferRow> readProvCore(Int64 inodeId, int fromLogicalTime, int toLogicalTime);
   ULSet getViewInodes(Pq* data_batch);
   std::string getElasticBulkOps(std::list <std::string> bulkOps);
 };
@@ -62,11 +62,11 @@ private:
 class FileProvenanceElasticDataReaders :  public NdbDataReaders<FileProvenanceRow, SConn>{
   public:
     FileProvenanceElasticDataReaders(SConn* hopsConns, int num_readers,const bool hopsworks,
-          TimedRestBatcher* restEndpoint, int lru_cap) :
+          TimedRestBatcher* restEndpoint, int prov_file_lru_cap, int prov_core_lru_cap, int inodes_lru_ca) :
     NdbDataReaders(restEndpoint){
       for(int i=0; i<num_readers; i++){
         FileProvenanceElasticDataReader* dr
-          = new FileProvenanceElasticDataReader(hopsConns[i], hopsworks, lru_cap);
+          = new FileProvenanceElasticDataReader(hopsConns[i], hopsworks, prov_file_lru_cap, prov_core_lru_cap, inodes_lru_ca);
         dr->start(i, this);
         mDataReaders.push_back(dr);
       }
