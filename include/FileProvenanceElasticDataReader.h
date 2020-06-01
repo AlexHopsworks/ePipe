@@ -33,7 +33,7 @@ struct ProcessRowResult {
   std::list<std::string> mElasticOps;
   FileProvenancePK mLogPK;
   boost::optional<FPXAttrBufferPK> mCompanionPK;
-  FileProvenanceConstants::Operation mProvOp;
+  FileProvenanceConstantsRaw::Operation mProvOp;
 };
 
 class FileProvenanceElasticDataReader : public NdbDataReader<FileProvenanceRow, SConn> {
@@ -48,7 +48,7 @@ private:
 
   void processAddedandDeleted(Pq* data_batch, eBulk& bulk);
   ProcessRowResult rowResult(std::list<std::string> elasticOps, FileProvenancePK logPK,
-          boost::optional<FPXAttrBufferPK> companionPK, FileProvenanceConstants::Operation provOp);
+          boost::optional<FPXAttrBufferPK> companionPK, FileProvenanceConstantsRaw::Operation provOp);
   ProcessRowResult process_row(FileProvenanceRow row);
   bool projectExists(Int64 projectIId, Int64 timestamp);
   FPXAttrBufferRow readBufferedXAttr(FPXAttrBufferPK xattrBufferKey);

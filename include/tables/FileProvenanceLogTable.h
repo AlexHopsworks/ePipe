@@ -25,6 +25,7 @@
 #include "ConcurrentQueue.h"
 #include "XAttrTable.h"
 #include "FileProvenanceXAttrBufferTable.h"
+#include "FileProvenanceConstantsRaw.h"
 
 struct FileProvenancePK {
   Int64 mInodeId;
@@ -161,9 +162,40 @@ struct FileProvenanceRowComparator {
   bool operator()(const FileProvenanceRow &r1, const FileProvenanceRow &r2) const {
     if (r1.mInodeId == r2.mInodeId) {
       return r1.mLogicalTime > r2.mLogicalTime;
-    } else {
-      return r1.mInodeId > r2.mInodeId;
     }
+    if(r1.mDatasetId == r2.mDatasetId) {
+      if(r1.mDatasetLogicalTime == r2.mDatasetLogicalTime) {
+        //if both operations work on a dataset and have the same logical time
+        //delete dataset should be last operation processed in epoch for this dataset logical time
+        if(isDeleteDataset(r1)) {
+          return true;
+        }
+        if(isDeleteDataset(r2)) {
+          return false;
+        }
+        //dataset xattr attach should be first operation processed in epoch for this dataset logical time
+        if(isDatasetProvCore(r1)) {
+          return false;
+        }
+        if(isDatasetProvCore(r2)) {
+          return true;
+        }
+      } else {
+        return r1.mDatasetLogicalTime > r2.mDatasetLogicalTime;
+      }
+    }
+    return r1.mInodeId > r2.mInodeId;
+  }
+
+  bool isDeleteDataset(const FileProvenanceRow &r) const {
+    return r.mInodeId == r.mDatasetId
+     && FileProvenanceConstantsRaw::findOp(r.mOperation) == FileProvenanceConstantsRaw::Operation::OP_DELETE;
+  }
+  bool isDatasetProvCore(const FileProvenanceRow &r) const {
+    return r.mInodeId == r.mDatasetId
+    && (FileProvenanceConstantsRaw::findOp(r.mOperation) == FileProvenanceConstantsRaw::Operation::OP_XATTR_ADD
+    || FileProvenanceConstantsRaw::findOp(r.mOperation) == FileProvenanceConstantsRaw::Operation::OP_XATTR_UPDATE)
+    && r.mXAttrName == FileProvenanceConstantsRaw::XATTR_PROV_CORE;
   }
 };
 

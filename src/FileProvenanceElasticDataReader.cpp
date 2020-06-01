@@ -466,12 +466,12 @@ void FileProvenanceElasticDataReader::processAddedandDeleted(Pq* data_batch, eBu
     FileProvenanceRow row = *it;
     ProcessRowResult result = process_row(row);
     LogHandler* lh = mFileLogTable.getLogHandler(result.mLogPK, result.mCompanionPK);
-    if (inodes.find(row.mInodeId) != inodes.end() || result.mProvOp == FileProvenanceConstants::Operation::OP_DELETE) {
+    if (inodes.find(row.mInodeId) != inodes.end() || result.mProvOp == FileProvenanceConstantsRaw::Operation::OP_DELETE) {
       std::string elasticBulkOps = getElasticBulkOps(result.mElasticOps);
       bulk.push(lh, row.mEventCreationTime, elasticBulkOps);
     } else {
       LOG_DEBUG(" Data for inode: " << row.mInodeName << ", " << row.mInodeId
-      << "op:" << result.mProvOp <<","<< FileProvenanceConstants::Operation::OP_DELETE << ", " << (result.mProvOp != FileProvenanceConstants::Operation::OP_DELETE) << "was not found");
+      << "op:" << result.mProvOp <<","<< FileProvenanceConstantsRaw::Operation::OP_DELETE << ", " << (result.mProvOp != FileProvenanceConstantsRaw::Operation::OP_DELETE) << "was not found");
       bulk.push(lh, row.mEventCreationTime, FileProvenanceConstants::ELASTIC_NOP);
     }
   }
@@ -514,189 +514,260 @@ std::string FileProvenanceElasticDataReader::getElasticBulkOps(std::list <std::s
 ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
   LOG_DEBUG("reading provenance for inode:" << row.mInodeId);
   std::list<std::string> bulkOps;
-  FileProvenanceConstants::Operation fileOp = FileProvenanceConstants::findOp(row);
+  FileProvenanceConstantsRaw::Operation fileOp = FileProvenanceConstantsRaw::findOp(row.mOperation);
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
   LOG_DEBUG("ml type:" << mlAux.first << " inode:" << row.mInodeId << " name:" << row.mInodeName);
   boost::optional<FPXAttrBufferRow> datasetProvCoreRow = getProvCore(row.mDatasetId, row.mDatasetLogicalTime);
   boost::optional<FileProvenanceConstants::ProvOpStoreType> datasetProvCore = boost::make_optional(false, FileProvenanceConstants::ProvOpStoreType::STORE_NONE);
-  boost::optional<Int64> projectIId = boost::none;
+  bool skipElasticOp = false;
   std::string projectIndex;
   if(datasetProvCoreRow) {
     std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> pc = FileProvenanceConstants::provCore(datasetProvCoreRow.get().mValue);
     datasetProvCore = pc.first;
-    projectIId = pc.second;
-  }
-  if(row.mProjectId != -1) {
-    projectIndex = FileProvenanceConstants::projectIndex(row.mProjectId);
-  } else if(projectIId) {
-    projectIndex = FileProvenanceConstants::projectIndex(projectIId.get());
-    row.mProjectId = projectIId.get();
+    row.mProjectId = pc.second;
   } else {
-    std::stringstream cause;
-    cause << "no project id - skipping operation" << row.to_string();
-    LOG_WARN(cause.str());
-    return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
+    //if no dataset prov core - probably dataset was deleted and processed already - we default to logging the operation
+    LOG_DEBUG("prov core - dataset prov core missing - iId:" << row.mInodeId << " dIId:" << row.mDatasetId << " op:" << row.mOperation << " pIId:" << row.mProjectId);
+    datasetProvCore = FileProvenanceConstants::ProvOpStoreType::STORE_ALL;
   }
-
-  if(!projectExists(row.mProjectId, row.mTimestamp)) {
+  if(row.mProjectId == -1) {
+    //without a project id, we will not be able to log it
+    LOG_DEBUG("no project id - skipping operation" << row.to_string());
+    skipElasticOp = true;
+  } else if(!projectExists(row.mProjectId, row.mTimestamp)) {
+    //without a project, there is no reason/place(index) to log it to
     LOG_DEBUG("no project inode(deleted?) - skipping operation" << row.getPK().to_string());
-    return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
+    skipElasticOp = true;
+  } else {
+    projectIndex = FileProvenanceConstants::projectIndex(row.mProjectId);
   }
 
   switch (fileOp) {
-    case FileProvenanceConstants::Operation::OP_CREATE: {
-      switch (mlAux.first) {
-        case FileProvenanceConstants::MLType::DATASET:
-        case FileProvenanceConstants::MLType::HIVE:
-        case FileProvenanceConstants::MLType::FEATURE:
-        case FileProvenanceConstants::MLType::TRAINING_DATASET:
-        case FileProvenanceConstants::MLType::EXPERIMENT:
-        case FileProvenanceConstants::MLType::MODEL: {
-          std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row, mlAux.second, mlAux.first);
-          bulkOps.push_back(state);
-        } break;
-        default:;
-          break; //do nothing
-      }
-      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
-        bulkOps.push_back(op);
+    case FileProvenanceConstantsRaw::Operation::OP_CREATE: {
+      if(!skipElasticOp) {
+        switch (mlAux.first) {
+          case FileProvenanceConstants::MLType::DATASET:
+          case FileProvenanceConstants::MLType::HIVE:
+          case FileProvenanceConstants::MLType::FEATURE:
+          case FileProvenanceConstants::MLType::TRAINING_DATASET:
+          case FileProvenanceConstants::MLType::EXPERIMENT:
+          case FileProvenanceConstants::MLType::MODEL: {
+            switch (datasetProvCore.get()) {
+              case FileProvenanceConstants::STORE_NONE: break;
+              case FileProvenanceConstants::STORE_STATE: {
+                std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(state);
+              } break;
+              case FileProvenanceConstants::STORE_ALL: {
+                std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(state);
+                std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(op);
+              } break;
+              default: {
+                LOG_DEBUG("unhandled prov state:" << datasetProvCore.get() << " - skipping it");
+              }
+            }
+          } break;
+          default: {
+            LOG_DEBUG("unhandled artifact type:" << mlAux.first << " - skipping it");
+          }
+        }
       }
       return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
     } break;
-    case FileProvenanceConstants::Operation::OP_DELETE: {
-      switch (mlAux.first) {
-        case FileProvenanceConstants::MLType::DATASET:
-        case FileProvenanceConstants::MLType::HIVE:
-        case FileProvenanceConstants::MLType::FEATURE:
-        case FileProvenanceConstants::MLType::TRAINING_DATASET:
-        case FileProvenanceConstants::MLType::EXPERIMENT:
-        case FileProvenanceConstants::MLType::MODEL: {
-          std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
-          bulkOps.push_back(state);
+    case FileProvenanceConstantsRaw::Operation::OP_DELETE: {
+      if(!skipElasticOp) {
+        switch (mlAux.first) {
+          case FileProvenanceConstants::MLType::DATASET:
+          case FileProvenanceConstants::MLType::HIVE:
+          case FileProvenanceConstants::MLType::FEATURE:
+          case FileProvenanceConstants::MLType::TRAINING_DATASET:
+          case FileProvenanceConstants::MLType::EXPERIMENT:
+          case FileProvenanceConstants::MLType::MODEL: {
+            switch (datasetProvCore.get()) {
+              case FileProvenanceConstants::STORE_NONE: break;
+              case FileProvenanceConstants::STORE_STATE: {
+                std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
+                bulkOps.push_back(state);
+              } break;
+              case FileProvenanceConstants::STORE_ALL: {
+                std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
+                bulkOps.push_back(state);
+                std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(op);
+              } break;
+              default: {
+                LOG_DEBUG("unhandled prov state:" << datasetProvCore.get() << " - skipping it");
+              }
+            }
+          } break;
+          default: {
+            LOG_DEBUG("unhandled artifact type:" << mlAux.first << " - skipping it");
+          }
         }
-          break;
-        default:;
-          break; //do nothing
-      }
-      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second,
-                                               mlAux.first);
-        bulkOps.push_back(op);
       }
       if (row.mInodeId == row.mDatasetId) {
         return rowResult(bulkOps, row.getPK(), datasetProvCoreRow.get().getPK(), fileOp);
       } else {
         return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
       }
-    }
-      break;
-    case FileProvenanceConstants::Operation::OP_MODIFY_DATA:
-    case FileProvenanceConstants::Operation::OP_ACCESS_DATA: {
-      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second,
-                                               mlAux.first);
-        bulkOps.push_back(op);
-      }
-      return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
-    }
-      break;
-    case FileProvenanceConstants::Operation::OP_XATTR_ADD:
-    case FileProvenanceConstants::Operation::OP_XATTR_UPDATE: {
-      FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName,
-                                     row.mLogicalTime);
-      FPXAttrBufferRow xattr = readBufferedXAttr(xattrBufferKey);
-      if (row.mXAttrName == FileProvenanceConstants::XATTR_PROV_CORE) {
-        std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> opProvCore = FileProvenanceConstants::provCore(xattr.mValue);
-        switch (opProvCore.first) {
-          case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: {
-            std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
-            bulkOps.push_back(state);
-          }
-            break;
-          case FileProvenanceConstants::ProvOpStoreType::STORE_STATE:
-          case FileProvenanceConstants::ProvOpStoreType::STORE_ALL: {
-            std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row,
-                                                          mlAux.second, mlAux.first);
-            bulkOps.push_back(state);
-          }
-            break;
+    } break;
+    case FileProvenanceConstantsRaw::Operation::OP_MODIFY_DATA:
+    case FileProvenanceConstantsRaw::Operation::OP_ACCESS_DATA: {
+      if(!skipElasticOp) {
+        switch (mlAux.first) {
+          case FileProvenanceConstants::MLType::DATASET:
+          case FileProvenanceConstants::MLType::HIVE:
+          case FileProvenanceConstants::MLType::FEATURE:
+          case FileProvenanceConstants::MLType::TRAINING_DATASET:
+          case FileProvenanceConstants::MLType::EXPERIMENT:
+          case FileProvenanceConstants::MLType::MODEL: {
+            switch (datasetProvCore.get()) {
+              case FileProvenanceConstants::STORE_NONE: break;
+              case FileProvenanceConstants::STORE_STATE: break;
+              case FileProvenanceConstants::STORE_ALL: {
+                std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(op);
+              } break;
+              default: {
+                LOG_DEBUG("unhandled prov state:" << datasetProvCore.get() << " - skipping it");
+              }
+            }
+          } break;
           default: {
-            std::stringstream cause;
-            cause << "prov state - xattr add/update - add to state - ProvOpStoreType not handled"
-                  << FileProvenanceConstants::provOpStoreTypeToStr(opProvCore.first);
-            LOG_ERROR(cause.str());
-            throw std::logic_error(cause.str());
+            LOG_DEBUG("unhandled artifact type:" << mlAux.first << " - skipping it");
           }
         }
-        datasetProvCore = opProvCore.first;
       }
-      switch (mlAux.first) {
-        case FileProvenanceConstants::MLType::FEATURE:
-        case FileProvenanceConstants::MLType::TRAINING_DATASET:
-        case FileProvenanceConstants::MLType::EXPERIMENT:
-        case FileProvenanceConstants::MLType::MODEL:
-        case FileProvenanceConstants::MLType::HIVE:
-        case FileProvenanceConstants::MLType::DATASET: {
-          if (datasetProvCore) {
-            FileProvenanceConstants::ProvOpStoreType provType = datasetProvCore.get();
-            switch (provType) {
-              case FileProvenanceConstants::ProvOpStoreType::STORE_ALL:
-              case FileProvenanceConstants::ProvOpStoreType::STORE_STATE: {
-                if (row.mXAttrName == FileProvenanceConstants::XATTR_PROJECT_IID) {
-                  std::string projIIdStateVal = ElasticHelper::addProjectIIdToState(ElasticHelper::stateId(row),projectIndex, row);
-                  bulkOps.push_back(projIIdStateVal);
-                }
-                std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), projectIndex,row, xattr.mValue);
-                bulkOps.push_back(xattrStateVal);
+      return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
+    } break;
+    case FileProvenanceConstantsRaw::Operation::OP_XATTR_ADD:
+    case FileProvenanceConstantsRaw::Operation::OP_XATTR_UPDATE: {
+      FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
+      boost::optional<FPXAttrBufferRow> xattr = mFileLogTable.getCompanionRow(mNdbConnection, xattrBufferKey);
+      if(xattr) {
+        if (row.mXAttrName == FileProvenanceConstantsRaw::XATTR_PROV_CORE) {
+          std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> opProvCore = FileProvenanceConstants::provCore(xattr.get().mValue);
+          datasetProvCore = opProvCore.first;
+          if (row.mProjectId == -1) {
+            //if we didn't know the project until here, this new prov core can tell us the project id
+            row.mProjectId = opProvCore.second;
+            projectIndex = FileProvenanceConstants::projectIndex(row.mProjectId);
+          }
+          if (projectExists(row.mProjectId, row.mTimestamp)) {
+            skipElasticOp = false;
+          }
+          if (!skipElasticOp) {
+            switch (datasetProvCore.get()) {
+              case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: {
+                std::string state = ElasticHelper::deadState(ElasticHelper::stateId(row), projectIndex);
+                bulkOps.push_back(state);
               }
                 break;
-              case FileProvenanceConstants::ProvOpStoreType::STORE_NONE:
+              case FileProvenanceConstants::ProvOpStoreType::STORE_STATE:
+              case FileProvenanceConstants::ProvOpStoreType::STORE_ALL: {
+                std::string state = ElasticHelper::aliveState(ElasticHelper::stateId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(state);
+              }
                 break;
               default: {
-                std::stringstream cause;
-                std::string sProvType = FileProvenanceConstants::provOpStoreTypeToStr(provType);
-                cause << "xattr add/update - add to state - ProvOpStoreType not handled" << sProvType;
-                LOG_ERROR(cause.str());
-                throw std::logic_error(cause.str());
+                LOG_WARN("unhandled prov state:" << datasetProvCore.get() << " - skipping it");
               }
             }
           }
         }
-          break;
+      } else {
+        skipElasticOp = true;
       }
-      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string xattrOpVal = ElasticHelper::addXAttrOp(ElasticHelper::opId(row), projectIndex, row, xattr.mValue, mlAux.second, mlAux.first);
-        bulkOps.push_back(xattrOpVal);
+      if(!skipElasticOp) {
+        switch (mlAux.first) {
+          case FileProvenanceConstants::MLType::FEATURE:
+          case FileProvenanceConstants::MLType::TRAINING_DATASET:
+          case FileProvenanceConstants::MLType::EXPERIMENT:
+          case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::HIVE:
+          case FileProvenanceConstants::MLType::DATASET: {
+            switch (datasetProvCore.get()) {
+              case FileProvenanceConstants::ProvOpStoreType::STORE_STATE: {
+                if (row.mXAttrName == FileProvenanceConstants::XATTR_PROJECT_IID) {
+                  std::string projIIdStateVal = ElasticHelper::addProjectIIdToState(ElasticHelper::stateId(row), projectIndex, row);
+                  bulkOps.push_back(projIIdStateVal);
+                }
+                std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), projectIndex, row, xattr.get().mValue);
+                bulkOps.push_back(xattrStateVal);
+              } break;
+              case FileProvenanceConstants::ProvOpStoreType::STORE_ALL: {
+                if (row.mXAttrName == FileProvenanceConstants::XATTR_PROJECT_IID) {
+                  std::string projIIdStateVal = ElasticHelper::addProjectIIdToState(ElasticHelper::stateId(row), projectIndex, row);
+                  bulkOps.push_back(projIIdStateVal);
+                }
+                std::string xattrStateVal = ElasticHelper::addXAttrToState(ElasticHelper::stateId(row), projectIndex, row, xattr.get().mValue);
+                bulkOps.push_back(xattrStateVal);
+                std::string xattrOpVal = ElasticHelper::addXAttrOp(ElasticHelper::opId(row), projectIndex, row, xattr.get().mValue, mlAux.second, mlAux.first);
+                bulkOps.push_back(xattrOpVal);
+              } break;
+              case FileProvenanceConstants::ProvOpStoreType::STORE_NONE: break;
+              default: {
+                LOG_WARN("unhandled prov state:" << datasetProvCore.get() << " - skipping it");
+              }
+            }
+          } break;
+          default: {
+            LOG_DEBUG("unhandled artifact type:" << mlAux.first << " - skipping it");
+          }
+        }
       }
-      if (row.mXAttrName == FileProvenanceConstants::XATTR_PROV_CORE) {
-        FPXAttrBufferPK provCorePK = datasetProvCoreRow.get().getPK();
-        if (provCorePK.mInodeLogicalTime < xattrBufferKey.mInodeLogicalTime) {
-          return rowResult(bulkOps, row.getPK(), provCorePK, fileOp);
+      if (row.mXAttrName == FileProvenanceConstantsRaw::XATTR_PROV_CORE) {
+        if (datasetProvCoreRow && datasetProvCoreRow.get().getPK().mInodeLogicalTime < xattrBufferKey.mInodeLogicalTime) {
+          return rowResult(bulkOps, row.getPK(), datasetProvCoreRow.get().getPK(), fileOp);
         } else {
           return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
         }
       } else {
         return rowResult(bulkOps, row.getPK(), xattrBufferKey, fileOp);
       }
-    }
-      break;
-    case FileProvenanceConstants::Operation::OP_XATTR_DELETE: {
+    } break;
+    case FileProvenanceConstantsRaw::Operation::OP_XATTR_DELETE: {
+      if (row.mXAttrName == FileProvenanceConstantsRaw::XATTR_PROV_CORE) {
+        LOG_WARN("prov core should not be deleted, instead it should be set to NONE");
+      }
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
-      std::string xattrStateVal = ElasticHelper::deleteXAttrFromState(ElasticHelper::stateId(row), projectIndex, row);
-      bulkOps.push_back(xattrStateVal);
-      if (datasetProvCore && datasetProvCore.get() == FileProvenanceConstants::ProvOpStoreType::STORE_ALL) {
-        std::string xattrOpVal = ElasticHelper::deleteXAttrOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
-        bulkOps.push_back(xattrOpVal);
+      if(!skipElasticOp) {
+        switch (mlAux.first) {
+          case FileProvenanceConstants::MLType::FEATURE:
+          case FileProvenanceConstants::MLType::TRAINING_DATASET:
+          case FileProvenanceConstants::MLType::EXPERIMENT:
+          case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::HIVE:
+          case FileProvenanceConstants::MLType::DATASET: {
+            switch (datasetProvCore.get()) {
+              case FileProvenanceConstants::STORE_NONE: break;
+              case FileProvenanceConstants::STORE_STATE: {
+                std::string xattrStateVal = ElasticHelper::deleteXAttrFromState(ElasticHelper::stateId(row), projectIndex, row);
+                bulkOps.push_back(xattrStateVal);
+              } break;
+              case FileProvenanceConstants::STORE_ALL: {
+                std::string xattrStateVal = ElasticHelper::deleteXAttrFromState(ElasticHelper::stateId(row), projectIndex, row);
+                bulkOps.push_back(xattrStateVal);
+                std::string xattrOpVal = ElasticHelper::deleteXAttrOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
+                bulkOps.push_back(xattrOpVal);
+              } break;
+              default: {
+                LOG_WARN("unhandled prov state:" << datasetProvCore.get() << " - skipping it");
+              }
+            }
+          } break;
+          default: {
+            LOG_DEBUG("unhandled artifact type:" << mlAux.first << " - skipping it");
+          }
+        }
       }
       return rowResult(bulkOps, row.getPK(), xattrBufferKey, fileOp);
-    }
-      break;
+    } break;
     default: {
       LOG_WARN("operation not implemented:" << row.mOperation);
-      std::stringstream cause;
-      cause << "operation not implemented:" << row.mOperation;
-      throw std::logic_error(cause.str());
+      return rowResult(bulkOps, row.getPK(), boost::none, fileOp);
     }
   }
 }
@@ -720,24 +791,13 @@ bool FileProvenanceElasticDataReader::projectExists(Int64 projectIId, Int64 time
 }
 
 ProcessRowResult FileProvenanceElasticDataReader::rowResult(std::list<std::string> elasticOps, FileProvenancePK logPK,
-                                  boost::optional<FPXAttrBufferPK> companionPK, FileProvenanceConstants::Operation provOp) {
+                                  boost::optional<FPXAttrBufferPK> companionPK, FileProvenanceConstantsRaw::Operation provOp) {
   ProcessRowResult result;
   result.mElasticOps = elasticOps;
   result.mLogPK = logPK;
   result.mCompanionPK = companionPK;
   result.mProvOp = provOp;
   return result;
-}
-
-FPXAttrBufferRow FileProvenanceElasticDataReader::readBufferedXAttr(FPXAttrBufferPK xattrBufferKey) {
-  boost::optional<FPXAttrBufferRow> xAttrBufferVal = mFileLogTable.getCompanionRow(mNdbConnection, xattrBufferKey);
-  if (!xAttrBufferVal) {
-    LOG_WARN("no such xattr in buffer:" << xattrBufferKey.to_string());
-    std::stringstream cause;
-    cause << "no such xattr in buffer: " << xattrBufferKey.to_string();
-    throw std::logic_error(cause.str());;
-  }
-  return xAttrBufferVal.get();
 }
 
 boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(Int64 inodeId, int opLogicalTime) {
@@ -761,7 +821,7 @@ boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(I
 
 boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::readProvCore(Int64 inodeId, int opLogicalTime, int fromLogicalTime) {
   std::vector<FPXAttrBufferRow> provCoreVersions = mFileLogTable.getCompanionBatch(mNdbConnection,
-          FPXAttrBufferPK(inodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstants::XATTR_PROV_CORE, opLogicalTime), fromLogicalTime);
+          FPXAttrBufferPK(inodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstantsRaw::XATTR_PROV_CORE, opLogicalTime), fromLogicalTime);
   LOG_DEBUG("prov core - inode:" << inodeId << ", from:" << fromLogicalTime << ", to:" << opLogicalTime << " found:" << provCoreVersions.size());
   //sort in reverse logical time order, so we can use latest, closest prov core
   std::sort(provCoreVersions.begin(), provCoreVersions.end(),
