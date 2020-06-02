@@ -252,13 +252,25 @@ public:
     }
   }
 
-  std::vector<FPXAttrBufferRow> getBatch(Ndb* connection, FPXAttrBufferPK key, int fromLogicalTime) {
+  std::map<int, FPXAttrBufferRow> getBatch(Ndb* connection, FPXAttrBufferPK toKey, int fromLogicalTime) {
     AnyVec anyVec;
-    for(Int64 logicalTime=fromLogicalTime; logicalTime <= key.mInodeLogicalTime; logicalTime++){
-      AnyMap keyMap = key.withLogicalTime(logicalTime).getMap();
+    std::vector<FPXAttrBufferPK> keys;
+    for(int logicalTime=fromLogicalTime; logicalTime <= toKey.mInodeLogicalTime; logicalTime++){
+      FPXAttrBufferPK key = toKey.withLogicalTime(logicalTime);
+      keys.push_back(key);
+      AnyMap keyMap = key.getMap();
       anyVec.push_back(keyMap);
     }
-    return DBTable<FPXAttrBufferRow>::doRead(connection, anyVec);
+    std::vector<FPXAttrBufferRow> rows = DBTable<FPXAttrBufferRow>::doRead(connection, anyVec);
+    std::map<int, FPXAttrBufferRow> result;
+    for(unsigned i=0; i<keys.size(); i++){
+      FPXAttrBufferPK key = keys[i];
+      FPXAttrBufferRow row = rows[i];
+      if(readCheckExists(key, row)) {
+        result.insert(std::make_pair(key.mInodeLogicalTime, row));
+      }
+    }
+    return result;
   }
 
   private:

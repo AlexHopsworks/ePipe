@@ -512,7 +512,7 @@ std::string FileProvenanceElasticDataReader::getElasticBulkOps(std::list <std::s
 }
 
 ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow row) {
-  LOG_DEBUG("reading provenance for inode:" << row.mInodeId);
+  LOG_DEBUG("processing:" << row.getPK().to_string() << " name:" << row.mInodeName << " dataset:" << row.mDatasetName);
   std::list<std::string> bulkOps;
   FileProvenanceConstantsRaw::Operation fileOp = FileProvenanceConstantsRaw::findOp(row.mOperation);
   std::pair<FileProvenanceConstants::MLType, std::string> mlAux = FileProvenanceConstants::parseML(row);
@@ -522,6 +522,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
   bool skipElasticOp = false;
   std::string projectIndex;
   if(datasetProvCoreRow) {
+    LOG_DEBUG("prov core - present");
     std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> pc = FileProvenanceConstants::provCore(datasetProvCoreRow.get().mValue);
     datasetProvCore = pc.first;
     row.mProjectId = pc.second;
@@ -532,7 +533,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
   }
   if(row.mProjectId == -1) {
     //without a project id, we will not be able to log it
-    LOG_DEBUG("no project id - skipping operation" << row.to_string());
+    LOG_WARN("no project id - skipping operation" << row.getPK().to_string() << " dataset:" << row.mDatasetName);
     skipElasticOp = true;
   } else if(!projectExists(row.mProjectId, row.mTimestamp)) {
     //without a project, there is no reason/place(index) to log it to
@@ -647,6 +648,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
       FPXAttrBufferPK xattrBufferKey(row.mInodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, row.mXAttrName, row.mLogicalTime);
       boost::optional<FPXAttrBufferRow> xattr = mFileLogTable.getCompanionRow(mNdbConnection, xattrBufferKey);
       if(xattr) {
+        LOG_DEBUG("processing xattr:" << xattr.get().getPK().to_string());
         if (row.mXAttrName == FileProvenanceConstantsRaw::XATTR_PROV_CORE) {
           std::pair<FileProvenanceConstants::ProvOpStoreType, Int64> opProvCore = FileProvenanceConstants::provCore(xattr.get().mValue);
           datasetProvCore = opProvCore.first;
@@ -820,17 +822,14 @@ boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::getProvCore(I
 }
 
 boost::optional<FPXAttrBufferRow> FileProvenanceElasticDataReader::readProvCore(Int64 inodeId, int opLogicalTime, int fromLogicalTime) {
-  std::vector<FPXAttrBufferRow> provCoreVersions = mFileLogTable.getCompanionBatch(mNdbConnection,
+  std::map<int, FPXAttrBufferRow> provCoreVersions = mFileLogTable.getCompanionBatch(mNdbConnection,
           FPXAttrBufferPK(inodeId, FileProvenanceConstants::XATTRS_USER_NAMESPACE, FileProvenanceConstantsRaw::XATTR_PROV_CORE, opLogicalTime), fromLogicalTime);
   LOG_DEBUG("prov core - inode:" << inodeId << ", from:" << fromLogicalTime << ", to:" << opLogicalTime << " found:" << provCoreVersions.size());
-  //sort in reverse logical time order, so we can use latest, closest prov core
-  std::sort(provCoreVersions.begin(), provCoreVersions.end(),
-            [](FPXAttrBufferRow a, FPXAttrBufferRow b) { return a.mInodeLogicalTime > b.mInodeLogicalTime; });
-  if (provCoreVersions.size() == 0) {
+  if(provCoreVersions.empty()) {
     LOG_WARN("prov core - none found for inode:" << inodeId << ", from:" << fromLogicalTime << ", to:" << opLogicalTime);
     return boost::none;
   }
-  return provCoreVersions[0];
+  return provCoreVersions.rbegin()->second;
 }
 
 FileProvenanceElasticDataReader::~FileProvenanceElasticDataReader() {

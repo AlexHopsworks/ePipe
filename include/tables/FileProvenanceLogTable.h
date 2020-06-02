@@ -356,7 +356,7 @@ public:
     return mXAttrBuffer->getRow(connection, key);
   }
 
-  std::vector<FPXAttrBufferRow> getCompanionBatch(Ndb* connection, FPXAttrBufferPK key, int fromLogicalTime) {
+  std::map<int, FPXAttrBufferRow> getCompanionBatch(Ndb* connection, FPXAttrBufferPK key, int fromLogicalTime) {
     FileProvenanceXAttrBufferTable* mXAttrBuffer = static_cast<FileProvenanceXAttrBufferTable*>(mCompanionTableBase);
     return mXAttrBuffer->getBatch(connection, key, fromLogicalTime);
   }
