@@ -32,10 +32,10 @@ void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
         ParsingResponse pr = httpPostRequest(mElasticBulkAddr, event.getJSON());
         if (!pr.mSuccess) {
           if (boost::starts_with(pr.errorMsg, "document_missing_exception:")) {
-            LOG_WARN("Skipped - document missing - " << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
+            LOG_INFO("file prov - elastic document missing - skipped op" << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
           } else {
-            LOG_ERROR("Failure while processing log : " << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
-            LOG_FATAL("cannot recover");
+            LOG_ERROR("file prov - elastic error while processing: " << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
+            LOG_FATAL("file prov - elastic - cannot recover");
           }
         }
       }
@@ -45,9 +45,8 @@ void FileProvenanceElastic::intProcessOneByOne(eBulk bulk) {
 }
 
 bool FileProvenanceElastic::intProcessBatch(std::string val, std::vector<eBulk>* bulks, std::vector<const LogHandler*> cleanupHandlers, ptime start_time) {
-  LOG_DEBUG("writting batch to index consists of events:" << bulks->size());
   if (!val.empty()) {
-    LOG_DEBUG("bulk write size:" << val.length() << " val:" << val);
+    LOG_DEBUG("file prov - elastic bulk write size:" << val.length() << " val:" << val);
     std::string mElasticBulkAddr = getElasticSearchBulkUrl();
     if (httpPostRequest(mElasticBulkAddr, val).mSuccess) {
       //bulk success
@@ -61,19 +60,17 @@ bool FileProvenanceElastic::intProcessBatch(std::string val, std::vector<eBulk>*
     }
   } else {
     //maybe this was only nops for this index
-    LOG_DEBUG("only nop events");
+    LOG_TRACE("file prov - elastic bulk has only nop events");
     mFileProvTable.cleanLogs(mConn, cleanupHandlers);
     if (mStats && !bulks->empty()) {
-      LOG_DEBUG("adding to stats");
       mCounters->bulksProcessed(start_time, bulks);
-      LOG_DEBUG("added to stats");
     }
     return true;
   }
 }
 
 void FileProvenanceElastic::process(std::vector<eBulk>* bulks) {
-  LOG_DEBUG("processing batch of size:" << bulks->size());
+  LOG_DEBUG("file prov - elastic writting batch to index consists of events:" << bulks->size());
   ptime start_time = Utils::getCurrentTime();
   std::string val = "";
   std::vector<const LogHandler*> cleanupHandlers;
@@ -91,7 +88,7 @@ void FileProvenanceElastic::process(std::vector<eBulk>* bulks) {
     }
   }
   if(!intProcessBatch(val, bulks, cleanupHandlers, start_time)) {
-    LOG_INFO("batch write failed - trying one by one");
+    LOG_INFO("file prov - elastic batch write failed - trying one by one");
     //bulk failed - process one by one and stop and failing one
     for(auto bulk : *bulks) {
       intProcessOneByOne(bulk);

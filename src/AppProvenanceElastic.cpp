@@ -47,7 +47,7 @@ void AppProvenanceElastic::process(std::vector<eBulk>* bulks) {
       eBulk bulk = *it;
       for(eEvent event : bulk.mEvents){
         if(!bulkRequest(event)){
-          LOG_FATAL("Failure while processing log : "
+          LOG_FATAL("app prov - elastic failure while processing log : "
           << event.getLogHandler()->getDescription() << std::endl << event.getJSON());
         }
       }
