@@ -28,7 +28,7 @@ rm -rf builds
 mkdir builds
 echo "$EPIPE_VERSION" > builds/version
 
-for platform in debian rhel
+for platform in rhel
 do
   DOCKER_FILE_DIR="centos"
   if [ "$platform" == "debian" ]; then
