@@ -55,7 +55,8 @@ public:
     dataVal.AddMember("entry_type",       rapidjson::Value().SetString("state", dataAlloc), dataAlloc);
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_create_timestamp",    rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-    
+    dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
+
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
 
@@ -302,7 +303,8 @@ public:
     dataVal.AddMember("entry_type",       rapidjson::Value().SetString("operation", dataAlloc), dataAlloc);
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
-     
+    dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
+
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
 
@@ -355,6 +357,7 @@ public:
     dataVal.AddMember("entry_type",       rapidjson::Value().SetString("operation", dataAlloc), dataAlloc);
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
 
     rapidjson::Value xattr(rapidjson::kObjectType);
     xattr.AddMember("raw", rapidjson::Value().SetString(val.c_str(), dataAlloc), dataAlloc);
@@ -420,6 +423,7 @@ public:
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("xattr_prov_key", rapidjson::Value().SetString(row.mXAttrName.c_str(), dataAlloc), dataAlloc);
+    dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
 
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);

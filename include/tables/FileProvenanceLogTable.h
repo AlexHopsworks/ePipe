@@ -87,7 +87,9 @@ struct FileProvenanceRow {
   std::string mProjectName;
   std::string mDatasetName;
   std::string mP1Name;
+  Int64 mP1Id;
   std::string mP2Name;
+  Int64 mP2Id;
   std::string mParentName;
   std::string mUserName;
   std::string mXAttrName;
@@ -125,7 +127,9 @@ struct FileProvenanceRow {
     stream << "ProjectName = " << mProjectName << std::endl;
     stream << "DatasetName = " << mDatasetName << std::endl;
     stream << "Parent1Name = " << mP1Name << std::endl;
+    stream << "Parent1Id = " << mP1Id << std::endl;
     stream << "Parent2Name = " << mP2Name << std::endl;
+    stream << "Parent2Id = " << mP2Id << std::endl;
     stream << "ParentName = " << mParentName << std::endl;
     stream << "UserName = " << mUserName << std::endl;
     stream << "XAttrName = " << mXAttrName << std::endl;
@@ -292,7 +296,9 @@ public:
     addColumn("project_name");
     addColumn("dataset_name");
     addColumn("i_p1_name");
+    addColumn("i_p1_id");
     addColumn("i_p2_name");
+    addColumn("i_p2_id");
     addColumn("i_parent_name");
     addColumn("io_user_name");
     addColumn("i_xattr_name");
@@ -322,14 +328,16 @@ public:
     row.mProjectName = get_string(value[12]);
     row.mDatasetName = get_string(value[13]);
     row.mP1Name = get_string(value[14]);
-    row.mP2Name = get_string(value[15]);
-    row.mParentName = get_string(value[16]);
-    row.mUserName = get_string(value[17]);
-    row.mXAttrName = get_string(value[18]);
-    row.mLogicalTimeBatch = value[19]->int32_value();
-    row.mTimestampBatch = value[20]->int64_value();
-    row.mDatasetLogicalTime = value[21]->int32_value();
-    row.mXAttrNumParts = value[22]->short_value();
+    row.mP1Id = value[15]->int64_value();
+    row.mP2Name = get_string(value[16]);
+    row.mP2Id = value[17]->int64_value();
+    row.mParentName = get_string(value[18]);
+    row.mUserName = get_string(value[19]);
+    row.mXAttrName = get_string(value[20]);
+    row.mLogicalTimeBatch = value[21]->int32_value();
+    row.mTimestampBatch = value[22]->int64_value();
+    row.mDatasetLogicalTime = value[23]->int32_value();
+    row.mXAttrNumParts = value[24]->short_value();
     return row;
   }
 
