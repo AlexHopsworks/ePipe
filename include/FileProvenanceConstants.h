@@ -40,6 +40,8 @@ namespace FileProvenanceConstants {
   const std::string ML_TYPE_EXPERIMENT_PART = "EXPERIMENT_PART";
   const std::string ML_TYPE_MODEL = "MODEL";
   const std::string ML_TYPE_MODEL_PART = "MODEL_PART";
+  const std::string ML_TYPE_MODEL_ARTIFACT = "MODEL_ARTIFACT";
+  const std::string ML_TYPE_MODEL_ARTIFACT_PART = "MODEL_ARTIFACT_PART";
 
   const std::string XATTR = "xattr_prov";
 
@@ -57,12 +59,14 @@ namespace FileProvenanceConstants {
     TRAINING_DATASET,
     EXPERIMENT,
     MODEL,
+    MODEL_ARTIFACT,
 
     HIVE_PART,
     FEATURE_PART,
     TRAINING_DATASET_PART,
     EXPERIMENT_PART,
-    MODEL_PART
+    MODEL_PART,
+    MODEL_ARTIFACT_PART
   };
 
   enum ProvOpStoreType {
@@ -87,6 +91,8 @@ namespace FileProvenanceConstants {
         return ML_TYPE_EXPERIMENT;
       case MODEL:
         return ML_TYPE_MODEL;
+      case MODEL_ARTIFACT:
+        return ML_TYPE_MODEL_ARTIFACT;
       case HIVE_PART:
         return TYPE_HIVE_PART;
       case FEATURE_PART:
@@ -97,6 +103,8 @@ namespace FileProvenanceConstants {
         return ML_TYPE_EXPERIMENT_PART;
       case MODEL_PART:
         return ML_TYPE_MODEL_PART;
+      case MODEL_ARTIFACT_PART:
+        return ML_TYPE_MODEL_ARTIFACT_PART;
       default:
         return TYPE_NONE;
     }
@@ -117,6 +125,11 @@ namespace FileProvenanceConstants {
     return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "" && row.mP2Name == "";
   }
 
+  inline bool fourLvlDeep(FileProvenanceRow row) {
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId
+    && row.mP1Name != "" && row.mP2Name != "" && row.mP3Name != "" && row.mP4Name == "";
+  }
+
   inline bool onePlusLvlDeep(FileProvenanceRow row) {
     return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId;
   }
@@ -125,18 +138,23 @@ namespace FileProvenanceConstants {
     return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId && row.mP1Name != "" && row.mP2Name != "";
   }
 
-  inline std::string twoNameForAsset(FileProvenanceRow row) {
+  inline bool fourPlusLvlDeep(FileProvenanceRow row) {
+    return row.mDatasetId != row.mInodeId && row.mDatasetId != row.mParentId
+           && row.mP1Name != "" && row.mP2Name != "" && row.mP3Name != "" && row.mP4Name != "";
+  }
+
+  inline std::string twoNameForAsset(std::string inodeName, std::string pName) {
     std::stringstream  mlId;
-    mlId << row.mParentName << "_" << row.mInodeName;
+    mlId << pName << "_" << inodeName;
     return mlId.str();
   }
 
-  inline std::string twoNameForPart(FileProvenanceRow row) {
+  inline std::string twoNameForPart(std::string inodeName, std::string pName, std::string p1Name, std::string p2Name) {
     std::stringstream  mlId;
-    if(row.mP2Name == "") {
-      mlId << row.mP1Name << "_" << row.mParentName;
+    if(p2Name == "") {
+      mlId << p1Name << "_" << pName;
     } else {
-      mlId << row.mP1Name << "_" << row.mP2Name;
+      mlId << p1Name << "_" << p2Name;
     }
     return mlId.str();
   }
@@ -177,12 +195,28 @@ namespace FileProvenanceConstants {
     return isDatasetName1(row, "Models") && twoPlusLvlDeep(row);
   }
 
+  inline bool isMLModelArtifact(FileProvenanceRow row) {
+    return row.mDatasetName == "Models" && row.mP3Name == "Artifacts" && fourLvlDeep(row);
+  }
+
+  inline bool partOfMLModelArtifact(FileProvenanceRow row) {
+    return row.mP3Name == "Artifacts" && fourPlusLvlDeep(row);
+  }
+
   inline std::string getMLModelId(FileProvenanceRow row) {
-    return twoNameForAsset(row);
+    return twoNameForAsset(row.mInodeName, row.mParentName);
   }
 
   inline std::string getMLModelParentId(FileProvenanceRow row) {
-    return twoNameForPart(row);
+    return twoNameForPart(row.mInodeName, row.mParentName, row.mP1Name, row.mP2Name);
+  }
+
+  inline std::string getMLModelArtifactId(FileProvenanceRow row) {
+    return twoNameForAsset(row.mInodeName, row.mParentName);
+  }
+
+  inline std::string getMLModelArtifactParentId(FileProvenanceRow row) {
+    return twoNameForPart(row.mInodeName, row.mParentName, row.mP3Name, row.mP4Name);
   }
 
   inline bool typeHive(FileProvenanceRow row) {
@@ -346,6 +380,9 @@ namespace FileProvenanceConstants {
     } else if(isMLModel(row)) {
       mlType = MLType::MODEL;
       mlId = getMLModelId(row);
+    } else if(isMLModelArtifact(row)){
+      mlType = MLType::MODEL_ARTIFACT;
+      mlId = getMLModelArtifactId(row);
     } else if(isHive(row)) {
       mlType = MLType::HIVE;
       mlId = "";
@@ -364,6 +401,9 @@ namespace FileProvenanceConstants {
     } else if(partOfMLModel(row)) {
       mlType = MLType::MODEL_PART;
       mlId = getMLModelParentId(row);
+    } else if(partOfMLModelArtifact(row)) {
+      mlType = MLType::MODEL_ARTIFACT_PART;
+      mlId = getMLModelArtifactParentId(row);
     } else if(partOfHive(row)) {
       mlType = MLType::HIVE_PART;
       mlId = "";

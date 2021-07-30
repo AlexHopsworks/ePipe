@@ -56,6 +56,9 @@ public:
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_create_timestamp",    rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
+    if (mlType == FileProvenanceConstants::MLType::MODEL_ARTIFACT) {
+      dataVal.AddMember("ml_inode_id2", rapidjson::Value().SetInt64(row.mP4Id), dataAlloc);
+    }
 
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
@@ -304,6 +307,9 @@ public:
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
+    if (mlType == FileProvenanceConstants::MLType::MODEL_ARTIFACT) {
+      dataVal.AddMember("ml_inode_id2", rapidjson::Value().SetInt64(row.mP4Id), dataAlloc);
+    }
 
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
@@ -358,6 +364,9 @@ public:
     dataVal.AddMember("partition_id",     rapidjson::Value().SetInt64(row.mPartitionId), dataAlloc);
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
+    if (mlType == FileProvenanceConstants::MLType::MODEL_ARTIFACT) {
+      dataVal.AddMember("ml_inode_id2", rapidjson::Value().SetInt64(row.mP4Id), dataAlloc);
+    }
 
     rapidjson::Value xattr(rapidjson::kObjectType);
     xattr.AddMember("raw", rapidjson::Value().SetString(val.c_str(), dataAlloc), dataAlloc);
@@ -424,6 +433,9 @@ public:
     dataVal.AddMember("r_timestamp",      rapidjson::Value().SetString(readable_timestamp(row.mTimestamp).c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("xattr_prov_key", rapidjson::Value().SetString(row.mXAttrName.c_str(), dataAlloc), dataAlloc);
     dataVal.AddMember("ml_inode_id",      rapidjson::Value().SetInt64(row.mP2Id), dataAlloc);
+    if (mlType == FileProvenanceConstants::MLType::MODEL_ARTIFACT) {
+      dataVal.AddMember("ml_inode_id2", rapidjson::Value().SetInt64(row.mP4Id), dataAlloc);
+    }
 
     data.AddMember("doc", dataVal, dataAlloc);
     data.AddMember("doc_as_upsert", rapidjson::Value().SetBool(true), dataAlloc);
@@ -565,7 +577,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE:
           case FileProvenanceConstants::MLType::TRAINING_DATASET:
           case FileProvenanceConstants::MLType::EXPERIMENT:
-          case FileProvenanceConstants::MLType::MODEL: {
+          case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT: {
             switch (datasetProvCore.get()) {
               case FileProvenanceConstants::STORE_NONE: break;
               case FileProvenanceConstants::STORE_STATE: {
@@ -587,7 +600,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE_PART:
           case FileProvenanceConstants::MLType::TRAINING_DATASET_PART:
           case FileProvenanceConstants::MLType::EXPERIMENT_PART:
-          case FileProvenanceConstants::MLType::MODEL_PART: {
+          case FileProvenanceConstants::MLType::MODEL_PART:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT_PART: {
             if (datasetProvCore.get() == FileProvenanceConstants::STORE_ALL) {
               std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
               bulkOps.push_back(op);
@@ -608,7 +622,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE:
           case FileProvenanceConstants::MLType::TRAINING_DATASET:
           case FileProvenanceConstants::MLType::EXPERIMENT:
-          case FileProvenanceConstants::MLType::MODEL: {
+          case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT: {
             switch (datasetProvCore.get()) {
               case FileProvenanceConstants::STORE_NONE: break;
               case FileProvenanceConstants::STORE_STATE: {
@@ -630,7 +645,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE_PART:
           case FileProvenanceConstants::MLType::TRAINING_DATASET_PART:
           case FileProvenanceConstants::MLType::EXPERIMENT_PART:
-          case FileProvenanceConstants::MLType::MODEL_PART: {
+          case FileProvenanceConstants::MLType::MODEL_PART:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT_PART: {
             if (datasetProvCore.get() == FileProvenanceConstants::STORE_ALL) {
               std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
               bulkOps.push_back(op);
@@ -656,7 +672,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE:
           case FileProvenanceConstants::MLType::TRAINING_DATASET:
           case FileProvenanceConstants::MLType::EXPERIMENT:
-          case FileProvenanceConstants::MLType::MODEL: {
+          case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT: {
             switch (datasetProvCore.get()) {
               case FileProvenanceConstants::STORE_NONE: break;
               case FileProvenanceConstants::STORE_STATE: break;
@@ -673,7 +690,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE_PART:
           case FileProvenanceConstants::MLType::TRAINING_DATASET_PART:
           case FileProvenanceConstants::MLType::EXPERIMENT_PART:
-          case FileProvenanceConstants::MLType::MODEL_PART: {
+          case FileProvenanceConstants::MLType::MODEL_PART:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT_PART: {
             if (datasetProvCore.get() == FileProvenanceConstants::STORE_ALL) {
               std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
               bulkOps.push_back(op);
@@ -729,6 +747,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::TRAINING_DATASET:
           case FileProvenanceConstants::MLType::EXPERIMENT:
           case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT:
           case FileProvenanceConstants::MLType::HIVE:
           case FileProvenanceConstants::MLType::DATASET: {
             switch (datasetProvCore.get()) {
@@ -760,7 +779,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE_PART:
           case FileProvenanceConstants::MLType::TRAINING_DATASET_PART:
           case FileProvenanceConstants::MLType::EXPERIMENT_PART:
-          case FileProvenanceConstants::MLType::MODEL_PART: {
+          case FileProvenanceConstants::MLType::MODEL_PART:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT_PART: {
             if (datasetProvCore.get() == FileProvenanceConstants::STORE_ALL) {
               std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
               bulkOps.push_back(op);
@@ -792,6 +812,7 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::TRAINING_DATASET:
           case FileProvenanceConstants::MLType::EXPERIMENT:
           case FileProvenanceConstants::MLType::MODEL:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT:
           case FileProvenanceConstants::MLType::HIVE:
           case FileProvenanceConstants::MLType::DATASET: {
             switch (datasetProvCore.get()) {
@@ -815,7 +836,8 @@ ProcessRowResult FileProvenanceElasticDataReader::process_row(FileProvenanceRow 
           case FileProvenanceConstants::MLType::FEATURE_PART:
           case FileProvenanceConstants::MLType::TRAINING_DATASET_PART:
           case FileProvenanceConstants::MLType::EXPERIMENT_PART:
-          case FileProvenanceConstants::MLType::MODEL_PART: {
+          case FileProvenanceConstants::MLType::MODEL_PART:
+          case FileProvenanceConstants::MLType::MODEL_ARTIFACT_PART: {
             if (datasetProvCore.get() == FileProvenanceConstants::STORE_ALL) {
               std::string op = ElasticHelper::fileOp(ElasticHelper::opId(row), projectIndex, row, mlAux.second, mlAux.first);
               bulkOps.push_back(op);
